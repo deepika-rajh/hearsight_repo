@@ -9,7 +9,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include <thread>
 #include "VWSLAM.h"
+#ifdef OPENCV_ENABLED
 #include "opencv2/opencv.hpp"
+#endif
 
 class Visualiser
 {
@@ -59,8 +61,9 @@ private:
    int gridHeight;
    int gridWidth;
    uint8_t * gridImage;
-
+#ifdef OPENCV_ENABLED
    void DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t * image, int widthFrame, int heightFrame, const VWSLAM::VWSLAMStatus & status, cv::Mat & rview );
+#endif
 };
 
 #endif //VISUALIZATION

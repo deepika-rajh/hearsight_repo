@@ -23,6 +23,7 @@ add_executable( ${RV_DVSLAM_ROS} ${RV_DVSLAM_ROS_SRC} )
 
 target_link_libraries(${RV_DVSLAM_ROS}
   rv mv3
+  realsense2
   pthread dl
   rclcpp
   rcutils

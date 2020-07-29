@@ -15,8 +15,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "Visualization.h"
 #include "VSLAMSystem.h"
 
-#include <opencv2/opencv.hpp>
-
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
@@ -47,13 +45,15 @@ Visualiser::~Visualiser()
 void 
 Visualiser::ShowPoints( VWSLAM::PoseQuality quality, std::string title, const VWSLAM::VWSLAMStatus & status )
 {   
-
+#ifdef OPENCV_ENABLED
    cv::Mat rview;
    DrawLabelledImage( quality, undistortedImage, imageWidth, imageHeight, status, rview );
 
    //char imageName[256];
    //sprintf( imageName, "%s_labelledImage_%" PRId64 ".png", title.c_str(), poseWithTime.timestamp );
    //cv::imwrite( imageName, rview );
+#endif
+
 #ifndef ARM_BASED
    cv::imshow( title, rview );
    cv::waitKey( 1 );
@@ -96,8 +96,11 @@ Visualiser::ShowGridMap()
       return;
    }
 
+#ifdef OPENCV_ENABLED
    cv::Mat rview( gridHeight, gridWidth, CV_8UC1 );
    memcpy( rview.data, gridImage, gridHeight*gridWidth );
+#endif
+
 #ifndef ARM_BASED
    /*cv::Mat doubleview;
    cv::resize( rview, doubleview, cv::Size( 2 * gridHeight, 2 * gridWidth ) );*/
@@ -114,7 +117,7 @@ Visualiser::ShowGridMap()
    return;
 }
 
-
+#ifdef OPENCV_ENABLED
 void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t * image, int widthFrame, int heightFrame, const VWSLAM::VWSLAMStatus & status, cv::Mat & rview )
 {
    rview = cv::Mat( heightFrame, widthFrame, CV_8UC1 );
@@ -169,4 +172,4 @@ void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t *
 
    return;
 }
-
+#endif

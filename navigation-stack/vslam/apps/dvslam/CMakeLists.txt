@@ -15,18 +15,26 @@ add_definitions(-DARM_BASED)
 add_definitions(-DENABLE_DEPTH)
 #add_definitions(-DOPENCV_TEST)
 
-find_package(OpenCV REQUIRED)
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-
+if (CMAKE_CROSSCOMPILING)
+    include_directories (${SYSROOT_INCDIR}/opencv2)
+else ()
+    find_package(OpenCV REQUIRED)
+    include_directories( ${OpenCV_INCLUDE_DIRS} )
+endif ()
 
 add_executable( ${RV_DVSLAM} ${RV_DVSLAM_SRC} )
 
 target_link_libraries(${RV_DVSLAM}
-		rv mv3
-		pthread dl
-		)
-target_link_libraries(${RV_DVSLAM} ${OpenCV_LIBS})
+    rv mv3
+    realsense2
+    pthread dl
+)
 
+if (CMAKE_CROSSCOMPILING)
+    #target_link_libraries(${RV_DVSLAM} ${OpenCV_LIBS})
+else ()
+    target_link_libraries(${RV_DVSLAM} ${OpenCV_LIBS})
+endif ()
 
 install( TARGETS ${RV_DVSLAM}
         RUNTIME DESTINATION /usr/bin/

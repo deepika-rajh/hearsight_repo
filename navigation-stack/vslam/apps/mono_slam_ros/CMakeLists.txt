@@ -14,16 +14,25 @@ set( RV_VWSLAM_ROS_SRC
 
 add_definitions(-DARM_BASED)
 add_definitions(-DROS_BASED)
-include_directories(/opt/ros/dashing/include)
-link_directories(/opt/ros/dashing/lib)
+add_definitions(-DWHEEL_SUPPORTED)
+add_definitions(-DOPENCV_ENABLED)
+
+find_package(OpenCV REQUIRED)
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
+if (CMAKE_CROSSCOMPILING)
+    include_directories (${DASHING_DIR}/include)
+    link_directories(${DASHING_DIR}/lib)
+else ()
+    include_directories(/opt/ros/dashing/include)
+    link_directories(/opt/ros/dashing/lib)
+endif ()
 
 find_package(PkgConfig)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GST_APP REQUIRED gstreamer-app-1.0)
 
 include_directories(${GLIB_INCLUDE_DIRS} ${GST_APP_INCLUDE_DIRS})
-
-find_package(OpenCV REQUIRED)
 
 add_executable( ${RV_VWSLAM_ROS} ${RV_VWSLAM_ROS_SRC} )
 

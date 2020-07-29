@@ -14,6 +14,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <signal.h>
 #include <functional>
 #include <string.h>
+#include <math.h>
 
 #include "VWSLAM.h"
 #include "VSLAMSystem.h"
