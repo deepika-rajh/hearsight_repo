@@ -18,6 +18,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include "VWSLAM.h"
 #include "VSLAMSystem.h"
+#include "SystemTime.h"
 
 //static members definition
 bool VSLAMSystem::showImg = false;
@@ -64,23 +65,26 @@ void Euler2Quaternion( double roll, double pitch, double yaw, double quaternion[
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+using std::placeholders::_1;
 
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
+extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
+extern rclcpp::Node::SharedPtr g_node;
 
-void pub_camera_raw_pose(const VWSLAM::VWSLAMPose & pose)
+void pub_camera_raw_pose(const rvVSLAMPose & pose)
 {
   auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
 
   odom_msg->header.frame_id = "odom";
   odom_msg->child_frame_id  = "base_link";
-  odom_msg->header.stamp = rclcpp::Time(pose.timestamp, RCL_ROS_TIME);
+  odom_msg->header.stamp = rclcpp::Time(pose.timestampNs, RCL_ROS_TIME);
 
-  odom_msg->pose.pose.position.x = pose.pose.position.x;
-  odom_msg->pose.pose.position.y = pose.pose.position.y;
-  odom_msg->pose.pose.position.z = pose.pose.position.z;
+  odom_msg->pose.pose.position.x = pose.pose.translation[0];
+  odom_msg->pose.pose.position.y = pose.pose.translation[1];
+  odom_msg->pose.pose.position.z = pose.pose.translation[2];
 
   double q[4];
-  Euler2Quaternion(pose.pose.euler.roll, pose.pose.euler.pitch, pose.pose.euler.yaw, q);
+  Euler2Quaternion(pose.pose.euler[0], pose.pose.euler[1], pose.pose.euler[2], q);
 
   odom_msg->pose.pose.orientation.x = q[1];
   odom_msg->pose.pose.orientation.y = q[2];
@@ -92,9 +96,55 @@ void pub_camera_raw_pose(const VWSLAM::VWSLAMPose & pose)
 
   raw_pose_pub->publish(std::move(odom_msg));
 }
+
+void pub_robot_pose(const rvVSLAMPose & pose)
+{
+  auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
+
+  odom_msg->header.frame_id = "odom";
+  odom_msg->child_frame_id  = "base_link";
+  odom_msg->header.stamp = rclcpp::Time(pose.timestampNs, RCL_ROS_TIME);
+
+  odom_msg->pose.pose.position.x = pose.pose.translation[0];
+  odom_msg->pose.pose.position.y = pose.pose.translation[1];
+  odom_msg->pose.pose.position.z = pose.pose.translation[2];
+
+  double q[4];
+  Euler2Quaternion(pose.pose.euler[0], pose.pose.euler[1], pose.pose.euler[2], q);
+
+  odom_msg->pose.pose.orientation.x = q[1];
+  odom_msg->pose.pose.orientation.y = q[2];
+  odom_msg->pose.pose.orientation.z = q[3];
+  odom_msg->pose.pose.orientation.w = q[0];
+
+  odom_msg->twist.twist.linear.x  = 0;
+  odom_msg->twist.twist.angular.z = 0;
+
+  robot_pose_pub->publish(std::move(odom_msg));
+}
+
+void VSLAMSystem::state_callback(const std_msgs::msg::String::SharedPtr msg) const
+{
+  printf("vslam received state change msg: %s\n", msg->data.c_str());
+
+  if (!strcmp(msg->data.c_str(), "stop"))
+  {
+      printf("vslam received stop sig\n");
+      Stop(SIGINT);
+  }else if (!strcmp(msg->data.c_str(), "sleep" )) {
+      printf("vslam received sleep sig\n");
+      sleep(false);
+  }else if (!strcmp(msg->data.c_str(), "awake" )) {
+      printf("vslam received awake sig\n");
+      awake();
+  }else if (!strcmp(msg->data.c_str(), "reset" )) {
+      printf("vslam received reset sig\n");
+      reset();
+  }
+
+}
 #endif
 /**********************   C APIs end   ************************************/
-
 
 VSLAMSystem::~VSLAMSystem()
 {
@@ -125,6 +175,11 @@ VSLAMSystem::VSLAMSystem()
       configuration = inputCamera->getCameraConfiguration();
       //inputCamera->stop();
    }
+
+#ifdef ROS_BASED
+   state_sub = g_node->create_subscription<std_msgs::msg::String>( "vslam_state", 10,
+        std::bind(&VSLAMSystem::state_callback, this,  _1));
+#endif
 }
 
 std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, const std::string & outputDir, bool _showImg)
@@ -234,14 +289,22 @@ void VSLAMSystem::reset()
    }
 }
 
-
+static uint64_t lastPoseTimeStamp = 0;
+static int isInitDone = 0;
 void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imageBuf, const uint16_t * depthBuf )
 {
    if( VSLAMSystem::systemState == KSLEEPING)
    {
       return;
    }
+
    printf("got an image\n");
+   if( !isInitDone )
+   {
+      system("echo vSLAM Initialization is finished > /dev/kmsg");
+      isInitDone = true;
+   }
+
    VWSLAM::VWSLAMStatus status;
    VWSLAM::VWSLAMPose rawPose;
    vwSLAM->addImage(timestamp, imageBuf, depthBuf);
@@ -252,6 +315,20 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    if(rawPose.poseQuality >= VWSLAM::QUALITY_GREAT )
    {
        pub_camera_raw_pose(rawPose);
+   }
+#endif
+
+#if 0  //wait API ready
+   robotPose = rvVWSLAM_GetVslamOutputPose(vslamPtr);
+   int64_t current_time = (int64_t)getRealTime();
+
+   if( robotPose.timestampNs - lastPoseTimeStamp > 0)
+   {
+      lastPoseTimeStamp = robotPose.timestampNs;
+      printf("the robot pose is updated and the latency is %d ms\n", (int)((current_time - robotPose.timestampNs)/1000000));
+      #ifdef ROS_BASED
+      pub_robot_pose(robotPose);
+      #endif
    }
 #endif
 
@@ -297,7 +374,6 @@ void
 VSLAMSystem::Spin()
 {
 #ifdef ROS_BASED
-   extern rclcpp::Node::SharedPtr g_node;
    rclcpp::spin( g_node );
 #else
    while( systemState != KSTOPPING )
