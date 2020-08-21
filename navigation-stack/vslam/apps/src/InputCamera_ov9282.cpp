@@ -261,7 +261,7 @@ void InputCamera_OV9282::proc()
    gst_element_set_state(gst_pipeline, GST_STATE_PLAYING);
    /* wait until it's up and running or failed */
    if (gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
-       printf("pileline failed to move to PLAYING state");
+       printf("*** pileline failed to move to PLAYING state\n");
    }
 
    #ifdef OPENCV_TEST
@@ -277,7 +277,7 @@ void InputCamera_OV9282::proc()
    {
        GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(gst_sink));
        if(!sample) {
-          printf("Could not get gstreamer sample.\n");
+          printf("*** Could not get gstreamer sample. *** \n");
           break;
        }
        GstBuffer* buf = gst_sample_get_buffer(sample);
@@ -335,6 +335,17 @@ void InputCamera_OV9282::proc()
            gst_buffer_unref(buf);
        }
     }
+
+    gst_element_set_state(gst_pipeline, GST_STATE_PAUSED);
+    /* wait until it's up and running or failed */
+    if (gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
+       printf("pileline failed to move to PAUSED state \n");
+    }
+
+    gst_element_set_state(gst_pipeline, GST_STATE_READY);
+    if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
+        printf("gst pipeline failed to set state to READY\n");
+
 }
 
 #if 0
@@ -424,7 +435,7 @@ bool InputCamera_OV9282::setup_pipeline()
 bool InputCamera_OV9282::start()
 {
    running = true;
-   printf("**** luow ******. start camera.\n");
+   printf("**** phil ******. start camera.\n");
    //config stream
    setup_pipeline();
 
@@ -459,6 +470,29 @@ bool InputCamera_OV9282::start()
 bool InputCamera_OV9282::stop()
 {
    running = false;
+   if(thread)
+      thread->join();
+
+   printf("OV9282 thread exits\n");
+
+   //gst_element_send_event(gst_pipeline, gst_event_new_eos());
+
+   //gst_element_set_state(gst_pipeline, GST_STATE_READY);
+   //if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
+   //   printf("gst pipeline failed to set state to READY\n");
+
+   gst_element_set_state(gst_pipeline, GST_STATE_NULL);
+   if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
+      printf("gst pipeline failed to set state to NULL\n");
+
+   if(gst_pipeline && ((GObject *)gst_pipeline)->ref_count > 0)
+      gst_object_unref(gst_pipeline);
+   if(gst_src && ((GObject *)gst_src)->ref_count > 0)
+      gst_object_unref(gst_src);
+   if(gst_filter && ((GObject *)gst_filter)->ref_count > 0)
+      gst_object_unref(gst_filter);
+   if(gst_sink && ((GObject *)gst_sink)->ref_count > 0)
+      gst_object_unref(gst_sink);
 
    return true;
 }

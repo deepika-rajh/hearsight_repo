@@ -17,15 +17,15 @@ add_definitions(-DROS_BASED)
 add_definitions(-DWHEEL_SUPPORTED)
 add_definitions(-DOPENCV_ENABLED)
 
-find_package(OpenCV REQUIRED)
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-
 if (CMAKE_CROSSCOMPILING)
     include_directories (${DASHING_DIR}/include)
     link_directories(${DASHING_DIR}/lib)
 else ()
-    include_directories(/opt/ros/dashing/include)
-    link_directories(/opt/ros/dashing/lib)
+    include_directories(/opt/ros/eloquent/include)
+    link_directories(/opt/ros/eloquent/lib)
+
+    find_package(OpenCV REQUIRED)
+    include_directories( ${OpenCV_INCLUDE_DIRS} )
 endif ()
 
 find_package(PkgConfig)
@@ -44,13 +44,13 @@ target_link_libraries(${RV_VWSLAM_ROS}
   rcutils
   yaml
   rcl
-  rcl_logging_noop
   rcl_interfaces__rosidl_generator_c
   rcl_interfaces__rosidl_typesupport_c
   rcl_interfaces__rosidl_typesupport_cpp
   rcl_yaml_param_parser
   rosgraph_msgs__rosidl_typesupport_cpp
   nav_msgs__rosidl_typesupport_cpp
+  std_msgs__rosidl_typesupport_cpp
   message_filters
   ament_index_cpp
   image_transport
@@ -64,8 +64,18 @@ target_link_libraries(${RV_VWSLAM_ROS}
   sensor_msgs__rosidl_typesupport_cpp
   builtin_interfaces__rosidl_generator_c
   cv_bridge
-  ${OpenCV_LIBS}
   )
+
+if (CMAKE_CROSSCOMPILING)
+    target_link_libraries(${RV_VWSLAM_ROS}
+    rcl_logging_noop
+    )
+else ()
+    target_link_libraries(${RV_VWSLAM_ROS}
+        tracetools
+        ${OpenCV_LIBS}
+    )
+endif()
 
 install( TARGETS ${RV_VWSLAM_ROS}
         RUNTIME DESTINATION /usr/bin/
