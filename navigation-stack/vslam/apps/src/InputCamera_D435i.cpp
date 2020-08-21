@@ -305,6 +305,8 @@ bool InputCamera_D435i::start()
 bool InputCamera_D435i::stop()
 {
    running = false;
+   if(thread)
+      thread->join();
 
    return true;
 }
