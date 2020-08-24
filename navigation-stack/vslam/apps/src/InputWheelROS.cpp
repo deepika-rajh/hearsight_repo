@@ -8,7 +8,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <memory>
 #include "InputWheelROS.h"
 
-#include "Queue.h"
+#include "rvQueue.h"
 #include "wheel_datatype.h"
 using std::placeholders::_1;
 

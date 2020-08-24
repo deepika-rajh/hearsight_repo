@@ -10,7 +10,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <stdint.h>
 #include <time.h>
 #include <functional>
-
+#include <string.h>
 #include "SystemTime.h"
 #include "Visualization.h"
 #include "VSLAMSystem.h"
@@ -22,6 +22,19 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <cv_bridge/cv_bridge.h>
 #endif
 
+//#ifdef __LINUX__
+//#define fopen_s(pFile,filename,mode) ((*(pFile))=fopen((filename),  (mode)))==NULL
+int fopen_s(FILE **f, const char *name, const char *mode) {
+   int ret = 0;
+   //assert(f);
+   *f = fopen(name, mode);
+   /* Can't be sure about 1-to-1 mapping of errno and MS' errno_t */
+   if (!*f)
+       ret = 1;
+   return ret;
+}
+//#endif
+
 Visualiser::Visualiser( int width, int height )
 {
    imageHeight = height;
@@ -31,6 +44,10 @@ Visualiser::Visualiser( int width, int height )
    gridHeight = 0;
    gridWidth = 0;
    gridImage = NULL;
+
+   occupancyGridHeight = 0;
+   occupancyGridWidth = 0;
+   occupancyGridImage = NULL;
 }
 
 Visualiser::~Visualiser()
@@ -39,11 +56,20 @@ Visualiser::~Visualiser()
 
    if( gridImage != NULL )
       delete[]gridImage;
+
+   occupancyGridMutex.lock();
+   if( occupancyGridImage != NULL )
+   {
+      WriteGrayBitmap( occupancyGridImage, "OccupancyImage.bmp", occupancyGridWidth, occupancyGridHeight, 0, 0, occupancyGridWidth, 0 );
+      delete[]occupancyGridImage;
+   }
+      
+   occupancyGridMutex.unlock();
 }
 
 
 void 
-Visualiser::ShowPoints( VWSLAM::PoseQuality quality, std::string title, const VWSLAM::VWSLAMStatus & status )
+Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, const rvVWSLAMStatus &status )
 {   
 #ifdef OPENCV_ENABLED
    cv::Mat rview;
@@ -54,7 +80,8 @@ Visualiser::ShowPoints( VWSLAM::PoseQuality quality, std::string title, const VW
    //cv::imwrite( imageName, rview );
 #endif
 
-#ifndef ARM_BASED
+//#ifndef ARM_BASED
+#ifndef __linux__
    cv::imshow( title, rview );
    cv::waitKey( 1 );
 #endif
@@ -87,7 +114,6 @@ Visualiser::ShowPoints( VWSLAM::PoseQuality quality, std::string title, const VW
    return;
 }
 
-
 void
 Visualiser::ShowGridMap()
 {
@@ -99,15 +125,52 @@ Visualiser::ShowGridMap()
 #ifdef OPENCV_ENABLED
    cv::Mat rview( gridHeight, gridWidth, CV_8UC1 );
    memcpy( rview.data, gridImage, gridHeight*gridWidth );
+   #ifndef __linux__
+      cv::imshow( "grid map", rview );
+      cv::waitKey( 1 );
+   #endif
 #endif
 
-#ifndef ARM_BASED
-   /*cv::Mat doubleview;
-   cv::resize( rview, doubleview, cv::Size( 2 * gridHeight, 2 * gridWidth ) );*/
+#ifdef ROS_BASED
+   extern image_transport::Publisher    occupancy_img_pub;
+   static int divider = 0;
 
-   cv::imshow( "grid map", rview );
-   cv::waitKey( 1 );
+   if( divider == 0 )
+   {
+      cv::Mat rview = cv::Mat( gridHeight, gridWidth, CV_8UC1 );
+      memcpy( rview.data, gridImage, gridHeight* gridWidth );
+      cv::cvtColor( rview, rview, cv::COLOR_GRAY2BGR ); //TODO: not sure if RGB is a MUST
+
+      sensor_msgs::msg::Image::SharedPtr img;
+      img = cv_bridge::CvImage(
+         std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, rview ).toImageMsg();
+
+      rclcpp::Clock ros_clock( RCL_ROS_TIME );
+
+      img->width = gridWidth;
+      img->height = gridHeight;
+      img->is_bigendian = false;
+      img->step = gridWidth * 3;
+      img->header.frame_id = "occupancy_image";
+      img->header.stamp = ros_clock.now();
+      occupancy_img_pub.publish( img );
+   }
+
+   divider++;
+   if( divider > 14 ) divider = 0;
 #endif
+
+   occupancyGridMutex.lock(); // just lock here in case the data might be visited outside
+   if( occupancyGridHeight*occupancyGridWidth < gridWidth*gridHeight )
+   {
+      if( occupancyGridImage != NULL )
+         delete[]occupancyGridImage;
+      occupancyGridImage = new unsigned char[gridWidth*gridHeight];
+   }
+   occupancyGridHeight = gridHeight;
+   occupancyGridWidth = gridWidth;
+   memcpy( occupancyGridImage, gridImage, gridWidth*gridHeight );
+   occupancyGridMutex.unlock();
 
    // we always release the memory here. Please allocate another memory to hold if necessary
    if( gridImage != NULL )
@@ -118,7 +181,7 @@ Visualiser::ShowGridMap()
 }
 
 #ifdef OPENCV_ENABLED
-void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t * image, int widthFrame, int heightFrame, const VWSLAM::VWSLAMStatus & status, cv::Mat & rview )
+void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t * image, int widthFrame, int heightFrame, const rvVWSLAMStatus & status, cv::Mat & rview )
 {
    rview = cv::Mat( heightFrame, widthFrame, CV_8UC1 );
    memcpy( rview.data, image, heightFrame* widthFrame );
@@ -128,14 +191,14 @@ void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t *
    int obsNum = status._MatchedMapPointNum + status._MisMatchedMapPointNum;
    if( obsNum > 0 )
    {
-      if( quality != VWSLAM::QUALITY_FAILED )
+      if( quality != RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_FAILED)
       {
          cv::Point2f imagePoint;
          for( int i = 0; i < obsNum; i++ )
          {
             imagePoint.x = status.observationBuf[i].x;
             imagePoint.y = status.observationBuf[i].y;
-            if( status.observationBuf[i].s == VWSLAM::TrackedObservation::MATCHING_OK )
+            if( status.observationBuf[i].s == RV_TrackedObservation::RV_OBSERVATION_STATE::MATCHING_OK)
             {
                circle( rview, imagePoint, 4, cv::Scalar( 0, 255, 0 ) ); //green: good feature
             }
@@ -149,14 +212,14 @@ void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t *
    
    char strFrame[50];
    cv::Scalar color( 255, 0, 0 );
-   if( VWSLAM::QUALITY_FAILED == quality ||
-       VWSLAM::QUALITY_INITIALIZING == quality
-       || VWSLAM::QUALITY_SCALEESTIMATION == quality
+   if(RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_FAILED == quality ||
+	   RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_INITIALIZING == quality
+       || RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_SCALEESTIMATION == quality
        )
    {
       color = cv::Scalar( 0, 0, 255 ); //red
    }
-   else if( quality == VWSLAM::QUALITY_BAD )
+   else if( quality == RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_BAD)
    {
       color = cv::Scalar( 0, 255, 255 );
    }
@@ -173,3 +236,68 @@ void Visualiser::DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t *
    return;
 }
 #endif
+
+
+void Visualiser::WriteGrayBitmap( unsigned char *iImgData, char *iImgName, int iWidth, int iHeight, int iPosX, int iPosY, int iFullLine, int Flag )
+{
+   int i, column, iNewWidth, iNewHeight;
+   unsigned short pp;
+   unsigned int pp1;
+   unsigned char CenterValue;
+   int pp2;
+   FILE *file;
+   iNewWidth = iWidth;
+   iNewHeight = iHeight;
+   i = iNewWidth % 4 == 0 ? iNewWidth : (4 * (iNewWidth / 4 + 1));
+   fopen_s( &file, iImgName, "wb" );
+   pp = 0x4d42;
+   fwrite( &pp, 2, 1, file );
+   pp1 = i*iNewHeight + 1078;
+   fwrite( &pp1, 4, 1, file );
+   fwrite( &pp, 2, 1, file );
+   fwrite( &pp, 2, 1, file );
+   pp1 = 1078;
+   fwrite( &pp1, 4, 1, file );
+
+   pp1 = 40;
+   fwrite( &pp1, 4, 1, file );
+   pp2 = iNewWidth;
+   fwrite( &pp2, 4, 1, file );
+   pp2 = iNewHeight;
+   fwrite( &pp2, 4, 1, file );
+   pp = 1;
+   fwrite( &pp, 2, 1, file );
+   pp = 8;
+   fwrite( &pp, 2, 1, file );
+   pp1 = 0;
+   fwrite( &pp1, 4, 1, file );
+   pp1 = iNewHeight*i;
+   fwrite( &pp1, 4, 1, file );
+   pp2 = 0;
+   fwrite( &pp2, 4, 1, file );
+   fwrite( &pp2, 4, 1, file );
+   pp1 = 0;
+   fwrite( &pp1, 4, 1, file );
+   fwrite( &pp1, 4, 1, file );
+   for( pp2 = 0; pp2<256; ++pp2 )
+   {
+      CenterValue = pp2;
+      fwrite( &CenterValue, 1, 1, file );
+      fwrite( &CenterValue, 1, 1, file );
+      fwrite( &CenterValue, 1, 1, file );
+      fwrite( &CenterValue, 1, 1, file );
+   }
+
+   if( Flag )
+      column = iFullLine % 4 == 0 ? iFullLine : (4 * (iFullLine / 4 + 1));
+   else
+      column = iFullLine;
+   for( pp2 = 0; pp2<iNewHeight; ++pp2 )
+   {
+      fwrite( iImgData + (iPosY + iNewHeight - 1 - pp2)*column + iPosX, 1, iNewWidth, file );
+      if( i>iNewWidth )
+         fwrite( &column, 1, i - iNewWidth, file );
+   }
+
+   fclose( file );
+}

@@ -435,7 +435,7 @@ bool InputCamera_OV9282::setup_pipeline()
 bool InputCamera_OV9282::start()
 {
    running = true;
-   printf("**** phil ******. start camera.\n");
+   printf("**** start camera.\n");
    //config stream
    setup_pipeline();
 

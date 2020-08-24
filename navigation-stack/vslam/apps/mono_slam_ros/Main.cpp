@@ -35,6 +35,7 @@ static char *helpMsg =
 rclcpp::Node::SharedPtr g_node = nullptr;
 image_transport::Publisher    color_pub;
 image_transport::Publisher    labeled_img_pub;
+image_transport::Publisher    occupancy_img_pub;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
 

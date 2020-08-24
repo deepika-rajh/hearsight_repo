@@ -11,6 +11,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <unistd.h>
 
 #include "VSLAMSystem.h"
+#include "InputWheelROS.h"
 
 //ROS2 common headers
 #include <rclcpp/rclcpp.hpp>
@@ -35,6 +36,7 @@ rclcpp::Node::SharedPtr g_node = nullptr;
 image_transport::Publisher    color_pub;
 image_transport::Publisher    depth_pub;
 image_transport::Publisher    labeled_img_pub;
+image_transport::Publisher    occupancy_img_pub;
 rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
@@ -86,6 +88,7 @@ int main( int argc, char** argv )
    color_pub = image_transport::create_publisher(g_node.get(), "camera/color_image");
    depth_pub = image_transport::create_publisher(g_node.get(), "camera/depth_image");
    labeled_img_pub = image_transport::create_publisher(g_node.get(), "vslam/labeled_img");
+   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
    cam_info_pub = g_node.get()->create_publisher<sensor_msgs::msg::CameraInfo>("camera/camera_info", 1);
    raw_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("vslam_odom_raw", 5);
    robot_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("robot_odom", 5);
@@ -107,8 +110,10 @@ int main( int argc, char** argv )
    system("echo vSLAM Start Initialization > /dev/kmsg");
 #endif
 
+   InputWheelROS wheel;
+
    //start VSLAM system
-   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false, false);
+   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false, true);
    sys->Run();
 
    //wait to quit

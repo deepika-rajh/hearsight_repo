@@ -9,12 +9,13 @@ set( RV_DVSLAM_ROS_SRC
      ../src/VSLAMWheel.cpp
      ../src/VSLAMHijack.cpp
      ../src/Visualization.cpp
+     ../src/InputWheelROS.cpp
      )
 
 add_definitions(-DARM_BASED)
 add_definitions(-DENABLE_DEPTH)
-add_definitions(-DROS_BASED)
 add_definitions(-DWHEEL_SUPPORTED)
+add_definitions(-DROS_BASED)
 add_definitions(-DOPENCV_ENABLED)
 
 if (CMAKE_CROSSCOMPILING)

@@ -9,7 +9,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "string.h"
 #include "VSLAMSystem.h"
 #include <functional>
-#include "Queue.h"
+#include "rvQueue.h"
 
 #define BUF_SIZE 10
 queue_mt<sensor_wheel> wheelDataArray( BUF_SIZE );

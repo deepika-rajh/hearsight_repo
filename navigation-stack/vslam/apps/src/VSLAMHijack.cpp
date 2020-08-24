@@ -9,7 +9,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "hijack_datatype.h"
 #include "string.h"
 #include "VSLAMSystem.h"
-#include "Queue.h"
+#include "rvQueue.h"
 
 #define BUF_SIZE 10
 queue_mt<sensor_hijack> hijackArray( BUF_SIZE );

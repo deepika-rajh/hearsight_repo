@@ -16,17 +16,19 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <string.h>
 #include <math.h>
 
-#include "VWSLAM.h"
 #include "VSLAMSystem.h"
+#include "rvVWSLAM.h"
 #include "SystemTime.h"
 
 //static members definition
 bool VSLAMSystem::showImg = false;
+//std::shared_ptr<rvVWSLAM> VSLAMSystem::vslamPtr = nullptr;
+rvVWSLAM *VSLAMSystem::vslamPtr = nullptr;
 std::shared_ptr<VSLAMSystem> VSLAMSystem::t = nullptr;
 std::shared_ptr<VSLAMIMU> VSLAMSystem::imu = nullptr;
 std::shared_ptr<VSLAMWheel> VSLAMSystem::wheel = nullptr;
 std::shared_ptr<VSLAMHijack> VSLAMSystem::hijack = nullptr;
-std::shared_ptr<VWSLAM> VSLAMSystem::vwSLAM = nullptr;
+//std::shared_ptr<rvVWSLAM> VSLAMSystem::vwSLAM = nullptr;
 VSLAMSystem::SystemState VSLAMSystem::systemState = KSLEEPING;
 std::shared_ptr<Visualiser> VSLAMSystem::viz = nullptr;
 std::string VSLAMSystem::rootPath = "";
@@ -150,6 +152,16 @@ VSLAMSystem::~VSLAMSystem()
 {
 }
 
+void VSLAMSystem::deinit()
+{
+   rvVWSLAM_Deinitialize( vslamPtr );
+
+   inputCamera = nullptr;
+   wheel = nullptr;
+   hijack = nullptr;
+   imu = nullptr;
+}
+
 VSLAMSystem::VSLAMSystem()
 {
    systemState = KSLEEPING;
@@ -182,54 +194,55 @@ VSLAMSystem::VSLAMSystem()
 #endif
 }
 
-std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, const std::string & outputDir, bool _showImg)
+std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, const std::string & outputDir, bool _showImg, const bool mapping )
 {
    rootPath = root;
    outputPath = outputDir;
-    if (t.get() == nullptr) {
-        t = std::make_shared<VSLAMSystem>();
-        
-#ifdef WHEEL_SUPPORTED
-       wheel = std::make_shared<VSLAMWheel>( );
-       if( wheel )
-       {
-          std::shared_ptr<WheelOdomReceiver> tmp = t;
-          wheel->addReceiver( tmp );
-       }
-#endif
-       hijack = std::make_shared<VSLAMHijack>();
-       if( hijack )
-       {
-          std::shared_ptr<HijackReceiver> tmp = t;
-          hijack->addReceiver( tmp );
-       }
 
-       vwSLAM = getVWSLAM();
-       vwSLAM->init( rootPath, outputPath, configuration);
+   if( t.get() == nullptr )
+   {
+      t = std::make_shared<VSLAMSystem>();
+
+#ifdef WHEEL_SUPPORTED
+      wheel = std::make_shared<VSLAMWheel>();
+      if( wheel )
+      {
+         std::shared_ptr<WheelOdomReceiver> tmp = t;
+         wheel->addReceiver( tmp );
+      }
+#endif
+      hijack = std::make_shared<VSLAMHijack>();
+      if( hijack )
+      {
+         std::shared_ptr<HijackReceiver> tmp = t;
+         hijack->addReceiver( tmp );
+      }
+
+      vslamPtr = rvVWSLAM_Initialize( root.c_str(), outputPath.c_str(), &configuration, mapping );
 
 #ifdef IMU_SUPPORTED
-       int32_t imuAxleSign[3] = { 1, 1, -1 }; //need to be read from configuration file in future
-       imu = std::make_shared<VSLAMIMU>( imuAxleSign );
-       if( imu != nullptr )
-       {
-          std::shared_ptr<IMUReceiver> tmp = t;
-          imu->addReceiver( tmp );
-       }
+      int32_t imuAxleSign[3] = { 1, 1, -1 }; //need to be read from configuration file in future
+      imu = std::make_shared<VSLAMIMU>( imuAxleSign );
+      if( imu != nullptr )
+      {
+         std::shared_ptr<IMUReceiver> tmp = t;
+         imu->addReceiver( tmp );
+      }
 #endif
-       showImg = _showImg;
+      showImg = _showImg;
 
-       viz = std::make_shared<Visualiser>( configuration.outputPixelWidth, configuration.outputPixelHeight );
-       
+      viz = std::make_shared<Visualiser>( configuration.outputPixelWidth, configuration.outputPixelHeight );
+
 #if GDB_DEBUG  //SIGINT would go to gdb but not vslam application
-   signal( 48, Stop );
+      signal( 48, Stop );
 #else
-   signal( SIGINT, Stop );
+      signal( SIGINT, Stop );
 #endif
-    }
+   }
 
-    //VSLAMSystem::doMapping = mapping;
+   VSLAMSystem::doMapping = mapping;
 
-    return t;
+   return t;
 }
 
 void VSLAMSystem::Run()
@@ -254,38 +267,48 @@ void VSLAMSystem::Run()
    //    vwSLAM = getVWSLAM();
    //    vwSLAM->init( rootPath, outputPath, configuration );
 
-   vwSLAM->run();
+   //vwSLAM->run();
+   rvVWSLAM_Run(vslamPtr);
+
    printf("vwSLAM OK\n");
    systemState = KWORKING;
 }
 
 void VSLAMSystem::sleep(bool isCloseCamera)
 {
+   if(systemState == KSLEEPING)
+      return;
+
 #ifdef ARM_BASED
    if (isCloseCamera )
       inputCamera->stop();
 #endif
    systemState = KSLEEPING;
-   vwSLAM->sleep();
+   rvVWSLAM_Sleep(vslamPtr);
 }
 
-void VSLAMSystem::awake()
+void VSLAMSystem::awake(bool isStartCamera)
 {
+   if(systemState == KSLEEPING)
+   {
 #ifdef ARM_BASED
-   inputCamera->start();
+   if(isStartCamera)
+      inputCamera->start();
 #endif
    systemState = KWORKING;
-   vwSLAM->awake();
+   rvVWSLAM_Awake(vslamPtr);
+   }
 }
 
 void VSLAMSystem::reset()
 {
-   vwSLAM->stop();
-   vwSLAM->reset();
-   vwSLAM->run();
+   rvVWSLAM_Stop(vslamPtr);
+   rvVWSLAM_Reset(vslamPtr);
+   rvVWSLAM_Run(vslamPtr);
    if( systemState == KSLEEPING )
    {
-      vwSLAM->awake();
+      systemState = KWORKING;
+      rvVWSLAM_Awake(vslamPtr);
    }
 }
 
@@ -305,20 +328,20 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       isInitDone = true;
    }
 
-   VWSLAM::VWSLAMStatus status;
-   VWSLAM::VWSLAMPose rawPose;
-   vwSLAM->addImage(timestamp, imageBuf, depthBuf);
-   vwSLAM->getUndistortedImage( viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
-   vwSLAM->getVWSLAMStatus( status ); 
-   rawPose = vwSLAM->getVSLAMRawPose();
+   rvVWSLAMStatus status;
+   rvVSLAMPose rawPose, robotPose;
+
+   rvVWSLAM_AddImage(vslamPtr, timestamp, imageBuf, depthBuf);
+   rvVWSLAM_getUndistortedImage(vslamPtr, viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
+   rvVWSLAM_GetVWSLAMStatus(vslamPtr, &status);
+   rawPose = rvVWSLAM_GetVslamRawPose(vslamPtr);
 #ifdef ROS_BASED
-   if(rawPose.poseQuality >= VWSLAM::QUALITY_GREAT )
+   if(rawPose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT )
    {
        pub_camera_raw_pose(rawPose);
    }
 #endif
 
-#if 0  //wait API ready
    robotPose = rvVWSLAM_GetVslamOutputPose(vslamPtr);
    int64_t current_time = (int64_t)getRealTime();
 
@@ -330,14 +353,17 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       pub_robot_pose(robotPose);
       #endif
    }
-#endif
 
+#ifndef WIN32
+   rvVWSLAM_getUndistortedImage(vslamPtr, viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
+   rvVWSLAM_GetVWSLAMStatus(vslamPtr, &status);
    viz->ShowPoints( rawPose.poseQuality, "points", status );
+#endif
 
    if( VSLAMSystem::isMappingEnabled() )
    {
-      vwSLAM->getGridImage( viz->getVisData(), viz->getVisWidth(), viz->getVisHeight() );
-      viz->ShowGridMap();
+	   rvVWSLAM_getGridImage(vslamPtr, viz->getVisData(), viz->getVisWidthAddr(), viz->getVisHeightAddr() );
+	   viz->ShowGridMap();
    }
 
    if (status.observationBuf )
@@ -348,25 +374,19 @@ void
 VSLAMSystem::addWheelOdom( float linearVelocity, float angularVelocity,
                    const float location[3], const float direction[4], int64_t timestamp )
 {
-
-   //printf("got an wheel\n");
-   vwSLAM->addWheelOdom( linearVelocity, angularVelocity, location, direction, timestamp );
+	rvVWSLAM_AddWheelOdom(vslamPtr, linearVelocity, angularVelocity, location, direction, timestamp );
 }
 
 void
 VSLAMSystem::addIMU( const float linearAcceleration[3], const float angularVelocity[3], int64_t timestamp )
 {
-   
-   //printf("got an imu\n");
-   vwSLAM->addImu( linearAcceleration, angularVelocity, timestamp );
+   rvVWSLAM_AddImu(vslamPtr, linearAcceleration, angularVelocity, timestamp );
 }
 
 void 
 VSLAMSystem::addHijack( bool status, int64_t timestamp )
 {
-
-   //printf("got a hijack\n");
-   vwSLAM->addHijack( status, timestamp );
+	rvVWSLAM_AddHijack(vslamPtr, status, timestamp );
 }
 
 

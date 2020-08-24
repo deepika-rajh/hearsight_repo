@@ -8,7 +8,8 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #define _VISUALIZATION_H_
 
 #include <thread>
-#include "VWSLAM.h"
+#include <mutex>
+#include "rvVWSLAM.h"
 #ifdef OPENCV_ENABLED
 #include "opencv2/opencv.hpp"
 #endif
@@ -39,9 +40,19 @@ public:
       return gridWidth;
    }
 
+   int* getVisWidthAddr()
+   {
+	   return &gridWidth;
+   }
+
    int& getVisHeight()
    {
       return gridHeight;
+   }
+
+   int* getVisHeightAddr()
+   {
+	   return &gridHeight;
    }
 
    unsigned char ** getVisData()
@@ -49,9 +60,11 @@ public:
       return &gridImage;
    }
 
-   void ShowPoints( VWSLAM::PoseQuality quality, std::string title, const VWSLAM::VWSLAMStatus & status );
+   void ShowPoints( RV_VSLAM_TRACKING_STATE quality, std::string title, const rvVWSLAMStatus & status );
 
    void ShowGridMap();
+
+   void WriteGrayBitmap( unsigned char *iImgData, char *iImgName, int iWidth, int iHeight, int iPosX, int iPosY, int iFullLine, int Flag );
 
 private:
    int imageHeight;
@@ -61,8 +74,14 @@ private:
    int gridHeight;
    int gridWidth;
    uint8_t * gridImage;
+
+   std::mutex occupancyGridMutex;
+   int occupancyGridHeight;
+   int occupancyGridWidth;
+   uint8_t * occupancyGridImage;
+
 #ifdef OPENCV_ENABLED
-   void DrawLabelledImage( VWSLAM::PoseQuality quality, const uint8_t * image, int widthFrame, int heightFrame, const VWSLAM::VWSLAMStatus & status, cv::Mat & rview );
+   void DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t * image, int widthFrame, int heightFrame, const rvVWSLAMStatus & status, cv::Mat & rview );
 #endif
 };
 

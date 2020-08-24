@@ -81,13 +81,17 @@ int main( int argc, char** argv )
 #endif
 
    //start VSLAM system
-   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false);
+   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false, false);
    sys->Run();
 
    //wait to quit
    sys->Spin();
    //stop VSLAM
    sys->Quit();
+   sys->deinit();
+   sys = nullptr;
+   printf("vslam application exits\n");
+   fflush(stdout);
 
    return 0;
 } 

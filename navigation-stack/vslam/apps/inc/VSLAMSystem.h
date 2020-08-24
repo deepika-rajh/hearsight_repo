@@ -14,7 +14,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <unistd.h>
 #endif
 
-#include <VWSLAM.h>
+#include <rvVWSLAM.h>
 #include "VSLAMIMU.h"
 #include "VSLAMWheel.h"
 #include "VSLAMHijack.h"
@@ -56,8 +56,9 @@ inline void mySleep( int x )
 class VSLAMSystem: public WheelOdomReceiver, public IMUReceiver, public HijackReceiver
 {
 public:
-   static std::shared_ptr<VSLAMSystem> Initialize( const std::string & root, const std::string & outputDir, bool _showImg);
-    static void Stop(int sig)
+   static std::shared_ptr<VSLAMSystem> Initialize( const std::string & root, const std::string & outputDir, bool _showImg, const bool doMapping );
+
+   static void Stop(int sig)
     {
         systemState = KSTOPPING;
 #ifdef ROS_BASED
@@ -70,7 +71,7 @@ public:
     static void Spin();
 
     static void Quit(void) {
-       vwSLAM->stop();
+       rvVWSLAM_Stop(vslamPtr);
 
         if( imu )
            imu->stop();
@@ -85,13 +86,15 @@ public:
             inputCamera->stop();
     }
 
-    static void sleep(bool isCloseCamera = true);
+    static void sleep(bool isCloseCamera = false);
 
-    static void awake();
+    static void awake(bool isStartCamera = false);
 
     static void reset();
 
     virtual ~VSLAMSystem();
+    static void deinit();
+
     VSLAMSystem();
     static bool showImg;
     static void addImageToVslam( const int64_t timeStamp, const uint8_t * imageBuf, const uint16_t * depthBuf );
@@ -101,28 +104,36 @@ public:
        systemState = KWORKING;
     }
 
-    void getRobotPose( VWSLAM::VWSLAMPose & pose )
+    void getRobotPose(rvVSLAMPose & pose )
     {
-       pose = vwSLAM->getVslamOutputPose();       
+       pose = rvVWSLAM_GetVslamOutputPose(vslamPtr);
     }
 
-    float getWallAngle()
-    {
-       return vwSLAM->getWallAngle();
-    }
+    //float getWallAngle()
+    //{
+    //   return rvVWSLAM_GetWallAngle();
+    //}
 
     static bool isMappingEnabled()
     {
        return doMapping;
     }
 
+    //static std::shared_ptr<rvVWSLAM> vslamPtr;
+
+    static rvVWSLAM* vslamPtr;
+#ifdef ROS_BASED
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_sub;
+#endif
 
 private:
+    //extern rvVWSLAM * vslamPtr;
     VSLAMSystem(const VSLAMSystem &) = delete;
     VSLAMSystem &operator= (const VSLAMSystem &) = delete;
 
+    //std::shared_ptr<rvVWSLAM> vslamPtr;
     static std::shared_ptr<VSLAMSystem> t;
-    static std::shared_ptr<VWSLAM> vwSLAM;
+    //rvVWSLAM *vwSLAM = nullptr;
     static std::shared_ptr<VSLAMIMU> imu;
     static std::shared_ptr<VSLAMWheel> wheel;
     static std::shared_ptr<VSLAMHijack> hijack;
@@ -155,9 +166,11 @@ private:
     static rvCameraParams configuration;
 
     static bool doMapping;
+#ifdef ROS_BASED
+    void state_callback(const std_msgs::msg::String::SharedPtr msg) const;
+#endif
 };
 
-/* the first 3 numbers are CRD mv version */
-#define VSLAM_APP_VERSION "1.2.7.1"
+#define VSLAM_APP_VERSION "3.0.1.1"
 
 #endif //__VSLAM_SYSTEM_H__
