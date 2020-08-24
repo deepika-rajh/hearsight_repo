@@ -5,15 +5,15 @@ All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 
-#ifndef MVWOD_H
-#define MVWOD_H
+#ifndef RVWOD_H
+#define RVWOD_H
 
 /***************************************************************************//**
 @file
    rvWOD.h
 
 @detailed
-   Machine Vision,
+   Robot Vision.
    Wall Orientation Detection (WOD)
 
 @section Overview
@@ -33,7 +33,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 //==============================================================================
 // Includes
 //============================================================================== 
-#include "mv.h" 
 #include "rv.h"
 
 //==============================================================================
@@ -64,7 +63,7 @@ extern "C"
       Pointer to WOD object; returns NULL if failed.
    ****************************************************************************/
    RV_API rvWOD* rvWOD_Initialize( const char* root_path, int scale, 
-                                   const mvCameraConfiguration cameraIntrisic );
+                                   const rvCameraConfiguration cameraIntrisic );
 
    /************************************************************************//**
    @detailed
@@ -99,38 +98,18 @@ extern "C"
    @returns
       Successful or not.
    ****************************************************************************/
-   RV_API bool rvWOD_GetWallOrienDirection4Seq( rvWOD* pObj, float& wallAngle );
+   RV_API bool rvWOD_GetWallOrienDirection( rvWOD* pObj, float& wallAngle );
+
 
    /************************************************************************//**
    @detailed
-      Show the result for the current image; Debug-only
+      Release the memories 
    @param pObj
       Pointer to WOD object.
    @returns
       Successful or not.
    ****************************************************************************/
-   RV_API bool rvWOD_ShowResult4EachImg( rvWOD* pObj );
-
-   /************************************************************************//**
-   @detailed
-      Show the result for the sequence images; Debug-only
-   @param pObj
-      Pointer to WOD object.
-   @returns
-      Successful or not.
-   ****************************************************************************/
-   RV_API bool rvWOD_ShowResult4ImgSeq( rvWOD* pObj );
-
-
-   /************************************************************************//**
-   @detailed
-      Release the memories for the current sequence;
-   @param pObj
-      Pointer to WOD object.
-   @returns
-      Successful or not.
-   ****************************************************************************/
-   RV_API bool rvWOD_Reset4ImgSeq( rvWOD* pObj );
+   RV_API bool rvWOD_Reset( rvWOD* pObj );
 
 #ifdef __cplusplus
 }
