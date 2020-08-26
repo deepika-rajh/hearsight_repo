@@ -321,7 +321,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       return;
    }
 
-   printf("got an image\n");
+   //printf("got an image\n");
    if( !isInitDone )
    {
       system("echo vSLAM Initialization is finished > /dev/kmsg");

@@ -348,12 +348,6 @@ void InputCamera_OV9282::proc()
 
 }
 
-#if 0
-void InputCamera_OV9282::onPreviewFrame( ICameraFrame *frame )
-{
-	
-}
-#endif
 
 gboolean InputCamera_OV9282::bus_callback (GstBus *bus, GstMessage *msg, gpointer userData)
 {
@@ -400,6 +394,8 @@ bool InputCamera_OV9282::setup_pipeline()
     gst_util_set_object_arg (G_OBJECT (gst_filter), "caps", capString);
 
     gst_sink     = gst_element_factory_make ("appsink", "sink");
+    gst_app_sink_set_drop(GST_APP_SINK(gst_sink), true);
+    gst_app_sink_set_max_buffers(GST_APP_SINK(gst_sink), 1);
 
     if (gst_pipeline == NULL ||
         gst_src == NULL ||
@@ -439,29 +435,6 @@ bool InputCamera_OV9282::start()
    //config stream
    setup_pipeline();
 
-   //camera info
-   //configuration.inputPixelWidth = IMAGE_WIDTH;
-   //configuration.inputPixelHeight = IMAGE_HEIGHT;
-   //configuration.outputPixelWidth = IMAGE_WIDTH;
-   //configuration.outputPixelHeight = IMAGE_HEIGHT;
-
-   //memset(configuration.inputCameraMatrix, 0, sizeof(configuration.inputCameraMatrix));
-#if 0
-   configuration.inputCameraMatrix[0] = intrinsics.fx;
-   configuration.inputCameraMatrix[2] = intrinsics.ppx;
-   configuration.inputCameraMatrix[4] = intrinsics.fy;
-   configuration.inputCameraMatrix[5] = intrinsics.ppy;
-   configuration.inputCameraMatrix[8] = 1.f;
-   memcpy(configuration.outputCameraMatrix, configuration.inputCameraMatrix, sizeof(configuration.inputCameraMatrix));
-   configuration.distortionModel = rvCameraParams::NoDistortion;
-   memset( configuration.distortionCoefficient, 0, sizeof( configuration.distortionCoefficient ) );
-   configuration.distortionCoefficient[0] = intrinsics.coeffs[0];
-   configuration.distortionCoefficient[1] = intrinsics.coeffs[1];
-   configuration.distortionCoefficient[2] = intrinsics.coeffs[2];
-   configuration.distortionCoefficient[3] = intrinsics.coeffs[3];
-   configuration.distortionCoefficient[4] = intrinsics.coeffs[4];
-#endif
-
    thread = std::make_shared<std::thread>(std::mem_fn(&InputCamera_OV9282::proc), this);
    return true;
 }
@@ -469,6 +442,7 @@ bool InputCamera_OV9282::start()
 
 bool InputCamera_OV9282::stop()
 {
+   gst_element_send_event(gst_pipeline, gst_event_new_eos());
    running = false;
    if(thread)
       thread->join();
@@ -493,6 +467,8 @@ bool InputCamera_OV9282::stop()
       gst_object_unref(gst_filter);
    if(gst_sink && ((GObject *)gst_sink)->ref_count > 0)
       gst_object_unref(gst_sink);
+
+   gst_deinit();
 
    return true;
 }
