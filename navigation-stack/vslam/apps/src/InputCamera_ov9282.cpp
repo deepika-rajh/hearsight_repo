@@ -22,7 +22,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 using namespace std;
 #define IMAGE_WIDTH  640
 #define IMAGE_HEIGHT 400
-#define FPS          30
+#define FPS          15
 #define CAMERA_ID    1   //ov9282 camera ID
 
 #ifdef OPENCV_TEST
