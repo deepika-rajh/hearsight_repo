@@ -6,18 +6,29 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include <sensor_msgs/msg/imu.hpp>
-#include <chrono>
-#include <functional>
 #include "imu-ros2node/imu_client.hpp"
-
-using namespace std::chrono_literals;
 
 class ImuTest: public rclcpp::Node
 {
 public:
-    ImuNode() : Node("imu_test")
+    ImuTest() : Node("imu_test")
     {
+        _subscription = this->create_subscription<sensor_msgs::msg::Imu>("imu", 10,
+            [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
+                RCLCPP_INFO(this->get_logger(), "topic msg: <%u, %f, %f, %f, %f, %f, %f>",
+                    msg->header.stamp,
+                    msg->linear_acceleration.x,
+                    msg->linear_acceleration.y,
+                    msg->linear_acceleration.z,
+                    msg->angular_velocity.x,
+                    msg->angular_velocity.y,
+                    msg->angular_velocity.z
+                );
+            }
+        );
     }
+private:
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr _subscription;
 };
 
 int main(int argc, char *argv[])
