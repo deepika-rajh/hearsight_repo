@@ -252,9 +252,9 @@ bool InputCamera_D435i::start()
    running = true;
    printf("**** luow ******. start camera.\n");
    //config stream
-   cfg.enable_stream(RS2_STREAM_COLOR, IMAGE_WIDTH, IMAGE_HEIGHT, RS2_FORMAT_RGB8, 30);
+   cfg.enable_stream(RS2_STREAM_COLOR, IMAGE_WIDTH, IMAGE_HEIGHT, RS2_FORMAT_RGB8, 15);
    //cfg.enable_stream(RS2_STREAM_INFRARED, IMAGE_WIDTH, IMAGE_HEIGHT, RS2_FORMAT_Y8, 30);
-   cfg.enable_stream(RS2_STREAM_DEPTH, IMAGE_WIDTH, IMAGE_HEIGHT, RS2_FORMAT_Z16, 30);
+   cfg.enable_stream(RS2_STREAM_DEPTH, IMAGE_WIDTH, IMAGE_HEIGHT, RS2_FORMAT_Z16, 15);
 
    //enable config
    profiles = pipe.start(cfg);
