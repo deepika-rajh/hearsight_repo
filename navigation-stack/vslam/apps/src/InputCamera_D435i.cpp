@@ -38,7 +38,8 @@ using namespace cv;
 using namespace cv;
 
 extern rclcpp::Node::SharedPtr g_node;
-extern image_transport::Publisher    color_pub;
+//extern image_transport::Publisher    color_pub;
+extern image_transport::Publisher    gray_pub;
 extern image_transport::Publisher    depth_pub;
 extern rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub;
 
@@ -97,8 +98,28 @@ void publishColor(rs2::frame f, const rclcpp::Time & t)
     img->step = width * bpp;
     img->header.frame_id = "color_frame";
     img->header.stamp = t;
-    color_pub.publish(img);
+    //color_pub.publish(img);
 }
+
+void publishGray(unsigned char* buf, const rclcpp::Time & t)
+{
+    Mat gray_image(Size(IMAGE_WIDTH, IMAGE_HEIGHT), CV_8UC1);
+    memcpy(gray_image.data, buf, IMAGE_WIDTH * IMAGE_HEIGHT);
+
+    sensor_msgs::msg::Image::SharedPtr img;
+    img = cv_bridge::CvImage(
+      std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, gray_image).toImageMsg();
+	  
+    img->width = IMAGE_WIDTH;
+    img->height = IMAGE_HEIGHT;
+    img->is_bigendian = false;
+    img->step = IMAGE_WIDTH;
+    img->header.frame_id = "gray_frame";
+    img->header.stamp = t;
+    gray_pub.publish(img);
+}
+
+
 
 void publishRGBCameraInfo(const rs2_intrinsics & intrinsic, const rclcpp::Time & t)
 {
@@ -240,7 +261,8 @@ void InputCamera_D435i::proc()
       t = rclcpp::Time(ros_time_base.nanoseconds() + elapsed_camera_ns, RCL_ROS_TIME);
 		  
       publishDepth(depth_frame, t);
-      publishColor(color_frame, t);
+      //publishColor(color_frame, t);
+      publishGray(buf, t);
       publishRGBCameraInfo(intrinsics, t);
       #endif
    }

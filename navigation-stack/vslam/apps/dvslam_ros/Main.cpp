@@ -33,7 +33,8 @@ static char *helpMsg =
       "-h : print help msg\n";
 
 rclcpp::Node::SharedPtr g_node = nullptr;
-image_transport::Publisher    color_pub;
+//image_transport::Publisher    color_pub;
+image_transport::Publisher    gray_pub;
 image_transport::Publisher    depth_pub;
 image_transport::Publisher    labeled_img_pub;
 image_transport::Publisher    occupancy_img_pub;
@@ -85,7 +86,8 @@ int main( int argc, char** argv )
    rclcpp::init(argc, argv);
    g_node = rclcpp::Node::make_shared("dvslam_ros");
    
-   color_pub = image_transport::create_publisher(g_node.get(), "camera/color_image");
+   //color_pub = image_transport::create_publisher(g_node.get(), "camera/color_image");
+   gray_pub = image_transport::create_publisher(g_node.get(), "camera/gray_image");
    depth_pub = image_transport::create_publisher(g_node.get(), "camera/depth_image");
    labeled_img_pub = image_transport::create_publisher(g_node.get(), "vslam/labeled_img");
    occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
@@ -126,7 +128,8 @@ int main( int argc, char** argv )
    sys = nullptr;
    printf("vslam application exits\n");
 
-   color_pub.shutdown();
+   //color_pub.shutdown();
+   gray_pub.shutdown();
    depth_pub.shutdown();
    labeled_img_pub.shutdown();
    rclcpp::shutdown();
