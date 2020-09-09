@@ -6,6 +6,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
+#include "imu_client.hpp"
 
 class ImuTest: public rclcpp::Node
 {

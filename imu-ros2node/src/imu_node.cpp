@@ -12,7 +12,7 @@
 #include <thread>
 #include <sys/sysinfo.h>
 #include <time.h>
-#include "imu-ros2node/imu_client.hpp"
+#include "imu_client.hpp"
 
 #define SAMPLE_RATE_MAX 1000
 

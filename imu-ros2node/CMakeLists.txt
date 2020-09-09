@@ -35,8 +35,8 @@ else ()
   find_package(geometry_msgs REQUIRED)
 endif ()
 
-add_executable(imu-ros2node src/imu_node.cpp src/imu_client.cpp)
-add_executable(imu-ros2test src/imu_node_test.cpp src/imu_client.cpp)
+add_executable(imu-ros2node src/imu_node.cpp)
+add_executable(imu-ros2test src/imu_node_test.cpp)
 
 if (CMAKE_CROSSCOMPILING)
   set(ROS-DASHING
@@ -67,10 +67,12 @@ if (CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(imu-ros2node PRIVATE
     pthread
+    imu_client
     PocoFoundation
     ${ROS-DASHING}
   )
   target_link_libraries(imu-ros2test PRIVATE
+    imu_client
     PocoFoundation
     ${ROS-DASHING}
   )

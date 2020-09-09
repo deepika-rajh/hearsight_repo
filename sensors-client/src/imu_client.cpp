@@ -14,7 +14,7 @@
 #include <sys/socket.h>
 #include <functional>
 
-#include "imu-ros2node/imu_client.hpp"
+#include "imu_client.hpp"
 
 #define PACK_SIZE PACK_GAP
 static char raw_buf[MMAP_SIZE] = {0};
