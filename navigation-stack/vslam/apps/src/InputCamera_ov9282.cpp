@@ -6,6 +6,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -25,10 +26,8 @@ using namespace std;
 #define FPS          15
 #define CAMERA_ID    1   //ov9282 camera ID
 
-#ifdef OPENCV_TEST
-#include <opencv2/opencv.hpp>
-using namespace cv;
-#endif
+int64_t InputCamera_OV9282::time_offset = 0;
+CameraCallback InputCamera_OV9282::callback = nullptr;
 
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
@@ -232,6 +231,9 @@ InputCamera_OV9282::InputCamera_OV9282(const char * configureFile)
    running = false;
    callback = NULL;
    clockOffset = 0;
+   gst_pipeline = NULL;
+   gst_loop = NULL;
+
    ParsePlaybackParameters( configureFile );
    findClocksOffsetForCamera();
 }
@@ -251,178 +253,236 @@ void InputCamera_OV9282::findClocksOffsetForCamera()
    //printf( "findClocksOffsetForCamera realClock = %" PRId64 ", monotonicClock=%" PRId64 ", clockOffset=%" PRId64 " \n ", realClock, monotonicClock, clockOffset );
 }
 
-
-void InputCamera_OV9282::proc()
+void InputCamera_OV9282::getRawImgProc()
 {
-   unsigned char gray_buf[IMAGE_WIDTH * IMAGE_HEIGHT];
-   int64_t ts;
-   
-   // start pipeline
-   gst_element_set_state(gst_pipeline, GST_STATE_PLAYING);
-   /* wait until it's up and running or failed */
-   if (gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
-       printf("*** pileline failed to move to PLAYING state\n");
-   }
+  // Run main loop.
+  g_main_loop_run (gst_loop);
 
-   #ifdef OPENCV_TEST
-   const auto window_gray = "Gary Image";
-   namedWindow(window_gray, WINDOW_AUTOSIZE);
-   #endif
+  gst_element_set_state (gst_pipeline, GST_STATE_NULL);
+
+}
+
+static unsigned char gray_buf[IMAGE_WIDTH * IMAGE_HEIGHT];
+static int64_t raw_img_last_ts = 0;
+GstFlowReturn InputCamera_OV9282::new_sample_cb (GstElement *sink, gpointer userdata)
+{
+    GstElement *pipeline = GST_ELEMENT (userdata);
+    GstSample *sample = NULL;
+    GstBuffer *buffer = NULL;
+    GstMapInfo info;
+    int64_t ts;
+
+    //GstClock * clock = gst_system_clock_obtain();
+    //GstClockTime ct1 = gst_clock_get_time(clock);
+    //gst_object_unref(clock);
 
    #ifdef ROS_BASED
    rclcpp::Time t;
    #endif
 
-   while (running )
-   {
-       GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(gst_sink));
-       if(!sample) {
-          printf("*** Could not get gstreamer sample. *** \n");
-          break;
-       }
-       GstBuffer* buf = gst_sample_get_buffer(sample);
-       GstMemory* memory = gst_buffer_get_memory(buf, 0);
-       GstMapInfo info;
-      
-       gst_memory_map(memory, &info, GST_MAP_READ);
-       gsize &buf_size = info.size;
-       guint8* &buf_data = info.data;
-       //printf("*** phil, image buf size %lu\n", buf_size);
-	  
-       //prepare data
-       guint8* desc_tmp = (guint8*)gray_buf;
-       guint8* src_tmp = info.data;
-       for(int i = 0; i < IMAGE_HEIGHT; i++)
-       {
-           memcpy(desc_tmp, src_tmp, IMAGE_WIDTH);
-           desc_tmp += IMAGE_WIDTH;
-           src_tmp += 1024;
-       }
-
-#ifdef OPENCV_TEST
-       Mat gray_image(Size(IMAGE_WIDTH, IMAGE_HEIGHT), CV_8UC1);
-       memcpy(gray_image.data, gray_buf, IMAGE_WIDTH * IMAGE_HEIGHT);
-       imshow(window_gray, gray_image);
-       waitKey(1);
-#endif
-
-       GstClockTime bt = gst_element_get_base_time(gst_pipeline);
-	  
-       #ifdef ROS_BASED
-       ts = GST_TIME_AS_USECONDS(buf->pts+bt) * 1000 + time_offset;
-       #else
-       ts = GST_TIME_AS_USECONDS(buf->pts+bt) * 1000; 
-       #endif
-
-       callback( ts, gray_buf, NULL );
-      
-       #ifdef ROS_BASED
-       t = rclcpp::Time(ts, RCL_ROS_TIME);
-		  
-       publishColor(gray_buf, t);
-       //publishRGBCameraInfo(intrinsics, t);
-       #endif
-
-       if(!buf)
-       {
-           printf("stream end\n");
-	   break;
-       }
-       else
-       {
-           gst_memory_unmap(memory, &info);
-           gst_memory_unref(memory);
-           gst_buffer_unref(buf);
-       }
+    g_signal_emit_by_name (sink, "pull-sample", &sample);
+    if (sample == NULL) {
+        printf ("ERROR: Pulled sample is NULL!\n");
+        return GST_FLOW_ERROR;
     }
 
-    gst_element_set_state(gst_pipeline, GST_STATE_PAUSED);
-    /* wait until it's up and running or failed */
-    if (gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE) {
-       printf("pileline failed to move to PAUSED state \n");
+    if ((buffer = gst_sample_get_buffer (sample)) == NULL) {
+        printf ("ERROR: Pulled buffer is NULL!");
+        gst_sample_unref (sample);
+        return GST_FLOW_ERROR;
     }
 
-    gst_element_set_state(gst_pipeline, GST_STATE_READY);
-    if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
-        printf("gst pipeline failed to set state to READY\n");
+    if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+        printf ("ERROR: Failed to map the pulled buffer!");
+        gst_sample_unref (sample);
+        return GST_FLOW_ERROR;
+    }
 
+    gsize &buf_size = info.size;
+    guint8* &buf_data = info.data;
+    //printf("*** phil, image buf size %lu\n", buf_size);
+
+    //prepare data
+    guint8* desc_tmp = (guint8*)gray_buf;
+    guint8* src_tmp = info.data;
+    for(int i = 0; i < IMAGE_HEIGHT; i++)
+    {
+        memcpy(desc_tmp, src_tmp, IMAGE_WIDTH);
+        desc_tmp += IMAGE_WIDTH;
+        src_tmp += 1024;
+    }
+
+    GstClockTime bt = gst_element_get_base_time(pipeline);
+    ts = GST_TIME_AS_USECONDS(buffer->pts+bt) * 1000 + time_offset;
+
+    printf("*** raw image interval %ldms\n",  (ts - raw_img_last_ts)/1000000);
+    raw_img_last_ts = ts;
+
+    gst_buffer_unmap (buffer, &info);
+    gst_sample_unref (sample);
+
+    //GstClockTime ct2 = gst_clock_get_time(clock);
+    //gst_object_unref(clock);
+    //int64_t callback_duration = GST_TIME_AS_USECONDS(ct2) - GST_TIME_AS_USECONDS(ct1);
+    //printf("new_sample_cb interval %ldus\n", callback_duration);
+
+    #ifdef ROS_BASED
+    t = rclcpp::Time(ts, RCL_ROS_TIME);
+    publishColor(gray_buf, t);
+    #endif
+
+    callback( ts, gray_buf, NULL );
+
+    return GST_FLOW_OK;
 }
 
-
-gboolean InputCamera_OV9282::bus_callback (GstBus *bus, GstMessage *msg, gpointer userData)
+void InputCamera_OV9282::state_change_cb (GstBus *bus, GstMessage *msg, gpointer userData)
 {
-    //GMainLoop *loop = (GMainLoop *)userData;
+    GstElement *pipeline = GST_ELEMENT (userData);
+    GstState old, new_, pending;
 
-    switch (GST_MESSAGE_TYPE (msg)) {
-        case GST_MESSAGE_ERROR:{
-            GError *err = NULL;
-            gchar *dbg;
+    if (GST_MESSAGE_SRC (msg) != GST_OBJECT_CAST (pipeline))
+        return;
 
-            gst_message_parse_error (msg, &err, &dbg);
-            gst_object_default_error (msg->src, err, dbg);
-            g_clear_error (&err);
-            g_free (dbg);
-            //g_main_loop_quit (loop);
-            break;
+    gst_message_parse_state_changed (msg, &old, &new_, &pending);
+    printf ("Pipeline state changed from %s to %s, pending: %s\n",
+        gst_element_state_get_name (old), gst_element_state_get_name (new_),
+        gst_element_state_get_name (pending));
+
+    if ((new_ == GST_STATE_PAUSED) && (old == GST_STATE_READY) && (pending == GST_STATE_VOID_PENDING)) {
+        printf ("Setting pipeline to PLAYING state ...\n");
+
+        if (gst_element_set_state (pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+            gst_printerr ("Pipeline doesn't want to transition to PLAYING state!\n");
+            return;
         }
-        default:
-            break;
     }
-    return TRUE;
+}
+
+void InputCamera_OV9282::error_callback (GstBus *bus, GstMessage *msg, gpointer userData)
+{
+    GMainLoop *mloop = (GMainLoop*) userData;
+    GError *error = NULL;
+    gchar *debug = NULL;
+
+    gst_message_parse_error (msg, &error, &debug);
+    gst_object_default_error (GST_MESSAGE_SRC (msg), error, debug);
+
+    g_free (debug);
+    g_error_free (error);
+
+    g_main_loop_quit (mloop);
+}
+
+void InputCamera_OV9282::eos_callback (GstBus *bus, GstMessage *msg, gpointer userData)
+{
+    GMainLoop *mloop = (GMainLoop*) userData;
+    printf("received eos event\n");
+    g_main_loop_quit (mloop);
 }
 
 bool InputCamera_OV9282::setup_pipeline()
 {
-    if(!gst_is_initialized())
+    gst_init(0, 0);
+
     {
-        gst_init(0, 0);
+    GError *error = NULL;
+
+    char pipeline_str[256];
+    snprintf(pipeline_str, sizeof(pipeline_str),
+         "qtiqmmfsrc name=camera camera=1 ! video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12 ! \
+          appsink name=sink enable-last-sample=false sync=false async=false emit-signals=true",
+           IMAGE_WIDTH, IMAGE_HEIGHT, FPS);
+
+    gst_pipeline = gst_parse_launch (pipeline_str, &error);
+    gst_debug_set_default_threshold((GstDebugLevel)3);
+    //gst_debug_set_threshold_for_name("qtiqmmfsrc", (GstDebugLevel)7);
+    gst_debug_set_colored(FALSE);
+
+    // Check for errors on pipe creation.
+    if ((NULL == gst_pipeline) && (error != NULL)) {
+      g_printerr ("Failed to create pipeline, error: %s!\n",
+          GST_STR_NULL (error->message));
+      g_clear_error (&error);
+      return false;
+    } else if ((NULL == gst_pipeline) && (NULL == error)) {
+      g_printerr ("Failed to create pipeline, unknown error!\n");
+      return false;
+    } else if ((gst_pipeline != NULL) && (error != NULL)) {
+      g_printerr ("Erroneous pipeline, error: %s!\n",
+          GST_STR_NULL (error->message));
+      g_clear_error (&error);
+      gst_object_unref (gst_pipeline);
+      return false;
+    }
     }
 
-    //create elements
-    gst_pipeline = gst_pipeline_new("pipeline");
-	
-    gst_src      = gst_element_factory_make (QMMFSRC, "camerasrc");
-	g_object_set(G_OBJECT (gst_src), "name", "qmmf", 
-	    "camera", CAMERA_ID, NULL);
+  // Initialize main loop.
+  if ((gst_loop = g_main_loop_new (NULL, FALSE)) == NULL) {
+    g_printerr ("ERROR: Failed to create Main loop!\n");
+    gst_object_unref (gst_pipeline);
+    return false;
+  }
 
-    gst_filter   = gst_element_factory_make ("capsfilter", "filter");
-    char capString[256];
-    snprintf(capString, sizeof(capString),
-        "video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12",
-        IMAGE_WIDTH, IMAGE_HEIGHT, FPS);
-    //printf("*** phil, capString: %s\n", capString);
-    gst_util_set_object_arg (G_OBJECT (gst_filter), "caps", capString);
+  {
+    GstBus *bus = NULL;
 
-    gst_sink     = gst_element_factory_make ("appsink", "sink");
-    gst_app_sink_set_drop(GST_APP_SINK(gst_sink), true);
-    gst_app_sink_set_max_buffers(GST_APP_SINK(gst_sink), 1);
+    // Retrieve reference to the pipeline's bus.
+    if ((bus = gst_pipeline_get_bus (GST_PIPELINE (gst_pipeline))) == NULL) {
+      g_printerr ("ERROR: Failed to retrieve pipeline bus!\n");
 
-    if (gst_pipeline == NULL ||
-        gst_src == NULL ||
-        gst_filter == NULL ||
-        gst_sink == NULL)
-    {
-        printf("pipeline setup failed\n");
-        return false;;
+      g_main_loop_unref (gst_loop);
+      gst_object_unref (gst_pipeline);
+
+      return false;
     }
 
-    //link pileline
-    gst_bin_add_many (GST_BIN (gst_pipeline), gst_src, gst_filter, gst_sink, NULL);
-    gst_element_link_many (gst_src, gst_filter, gst_sink, NULL);
+    // Watch for messages on the pipeline's bus.
+    gst_bus_add_signal_watch (bus);
 
-    //gst_debug_set_default_threshold((GstDebugLevel)GST_LEVEL_TRACE);
+    g_signal_connect (bus, "message::state-changed",
+        G_CALLBACK (state_change_cb), gst_pipeline);
+    //g_signal_connect (bus, "message::warning", G_CALLBACK (warning_cb), NULL);
+    g_signal_connect (bus, "message::error", G_CALLBACK (error_callback), gst_loop);
+    g_signal_connect (bus, "message::eos", G_CALLBACK (eos_callback), gst_loop);
 
-    //set bus cb
-    gst_bus_add_watch(GST_ELEMENT_BUS(gst_pipeline), bus_callback, NULL);
-	
+    gst_object_unref (bus);
+  }
+
+  // Connect a callback to the new-sample signal.
+  {
+    GstElement *element = gst_bin_get_by_name (GST_BIN (gst_pipeline), "sink");
+    g_signal_connect (element, "new-sample", G_CALLBACK (new_sample_cb), gst_pipeline);
+  }
+
+  g_print ("Setting pipeline to PAUSED state ...\n");
+
+  switch (gst_element_set_state (gst_pipeline, GST_STATE_PAUSED)) {
+    case GST_STATE_CHANGE_FAILURE:
+      g_printerr ("ERROR: Failed to transition to PAUSED state!\n");
+      break;
+    case GST_STATE_CHANGE_NO_PREROLL:
+      g_print ("Pipeline is live and does not need PREROLL.\n");
+      break;
+    case GST_STATE_CHANGE_ASYNC:
+      g_print ("Pipeline is PREROLLING ...\n");
+      break;
+    case GST_STATE_CHANGE_SUCCESS:
+      g_print ("Pipeline state change was successful\n");
+      break;
+  }
+
+    GstClock * clock = gst_system_clock_obtain();
+    GstClockTime ct = gst_clock_get_time(clock);
+    gst_object_unref(clock);
     #ifdef ROS_BASED
     rclcpp::Clock ros_clock(RCL_ROS_TIME);
     rclcpp::Time ros_time_base = ros_clock.now();
 	
-    GstClock * clock = gst_system_clock_obtain();
-    GstClockTime ct = gst_clock_get_time(clock);
-    gst_object_unref(clock);
     time_offset = ros_time_base.nanoseconds() - GST_TIME_AS_USECONDS(ct) * 1000;
+    #else
+    int64_t current_time = (int64_t)getRealTime();
+    time_offset = current_time - GST_TIME_AS_USECONDS(ct) * 1000;
     #endif
 
     return true;
@@ -435,40 +495,24 @@ bool InputCamera_OV9282::start()
    //config stream
    setup_pipeline();
 
-   thread = std::make_shared<std::thread>(std::mem_fn(&InputCamera_OV9282::proc), this);
+   rawImgThread = std::make_shared<std::thread>(std::mem_fn(&InputCamera_OV9282::getRawImgProc), this);
    return true;
 }
 
 
 bool InputCamera_OV9282::stop()
 {
-   gst_element_send_event(gst_pipeline, gst_event_new_eos());
    running = false;
-   if(thread)
-      thread->join();
+   gst_element_send_event(gst_pipeline, gst_event_new_eos());
+   if(rawImgThread)
+      rawImgThread->join();
 
    printf("OV9282 thread exits\n");
 
-   //gst_element_send_event(gst_pipeline, gst_event_new_eos());
+   g_main_loop_unref (gst_loop);
+   gst_object_unref (gst_pipeline);
 
-   //gst_element_set_state(gst_pipeline, GST_STATE_READY);
-   //if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
-   //   printf("gst pipeline failed to set state to READY\n");
-
-   gst_element_set_state(gst_pipeline, GST_STATE_NULL);
-   if(gst_element_get_state(gst_pipeline, NULL, NULL, -1) == GST_STATE_CHANGE_FAILURE)
-      printf("gst pipeline failed to set state to NULL\n");
-
-   if(gst_pipeline && ((GObject *)gst_pipeline)->ref_count > 0)
-      gst_object_unref(gst_pipeline);
-   if(gst_src && ((GObject *)gst_src)->ref_count > 0)
-      gst_object_unref(gst_src);
-   if(gst_filter && ((GObject *)gst_filter)->ref_count > 0)
-      gst_object_unref(gst_filter);
-   if(gst_sink && ((GObject *)gst_sink)->ref_count > 0)
-      gst_object_unref(gst_sink);
-
-   gst_deinit();
+   gst_deinit ();
 
    return true;
 }
