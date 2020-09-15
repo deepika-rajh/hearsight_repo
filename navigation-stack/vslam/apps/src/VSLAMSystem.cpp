@@ -160,6 +160,7 @@ void VSLAMSystem::deinit()
    wheel = nullptr;
    hijack = nullptr;
    imu = nullptr;
+   vslamPtr = nullptr;
 }
 
 VSLAMSystem::VSLAMSystem()
@@ -332,8 +333,6 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    rvVSLAMPose rawPose, robotPose;
 
    rvVWSLAM_AddImage(vslamPtr, timestamp, imageBuf, depthBuf);
-   rvVWSLAM_getUndistortedImage(vslamPtr, viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
-   rvVWSLAM_GetVWSLAMStatus(vslamPtr, &status);
    rawPose = rvVWSLAM_GetVslamRawPose(vslamPtr);
 #ifdef ROS_BASED
    if(rawPose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT )
@@ -348,7 +347,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    if( robotPose.timestampNs - lastPoseTimeStamp > 0)
    {
       lastPoseTimeStamp = robotPose.timestampNs;
-      printf("the robot pose is updated and the latency is %d ms\n", (int)((current_time - robotPose.timestampNs)/1000000));
+      printf("pose is updated. cur_time %ld, last %ld, the latency is %ld ms\n", current_time, robotPose.timestampNs, (current_time - robotPose.timestampNs)/1000000);
       #ifdef ROS_BASED
       pub_robot_pose(robotPose);
       #endif

@@ -9,8 +9,12 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <iostream>
 #include <string>
 #include <unistd.h>
+#include <stdio.h>
+#include <mcheck.h>
 
 #include "VSLAMSystem.h"
+
+#define ENABLE_MTRACE 0
 
 bool debugLevel = 0;
 static char *helpMsg =
@@ -25,6 +29,11 @@ static char *helpMsg =
 int main( int argc, char** argv )
 {
    int opt;
+
+#if ENABLE_MTRACE
+   setenv("MALLOC_TRACE", "mem.log", 1);
+   mtrace();
+#endif
 
    std::string root = std::string( "/data/misc/vwslam/" );
    std::string output = std::string( "/data/vwslam/" );
@@ -92,6 +101,10 @@ int main( int argc, char** argv )
    sys = nullptr;
    printf("vslam application exits\n");
    fflush(stdout);
+
+#if ENABLE_MTRACE
+   muntrace();
+#endif
 
    return 0;
 } 

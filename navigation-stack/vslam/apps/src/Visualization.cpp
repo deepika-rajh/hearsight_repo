@@ -22,19 +22,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <cv_bridge/cv_bridge.h>
 #endif
 
-//#ifdef __LINUX__
-//#define fopen_s(pFile,filename,mode) ((*(pFile))=fopen((filename),  (mode)))==NULL
-int fopen_s(FILE **f, const char *name, const char *mode) {
-   int ret = 0;
-   //assert(f);
-   *f = fopen(name, mode);
-   /* Can't be sure about 1-to-1 mapping of errno and MS' errno_t */
-   if (!*f)
-       ret = 1;
-   return ret;
-}
-//#endif
-
 Visualiser::Visualiser( int width, int height )
 {
    imageHeight = height;
@@ -210,7 +197,7 @@ void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_
       }
    }
    
-   char strFrame[50];
+   char strFrame[60];
    cv::Scalar color( 255, 0, 0 );
    if(RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_FAILED == quality ||
 	   RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_INITIALIZING == quality
@@ -230,7 +217,7 @@ void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_
    snprintf( strFrame, 30, "BR:%3d, KF:%5d", (int32_t)status._Brightness, status._KeyframeNum );
    //putText( rview, std::string( strFrame ), cv::Point2f( widthFrame - 290.0f, heightFrame - 30.0f ), cv::FONT_HERSHEY_COMPLEX, 0.6, color );
    putText( rview, std::string( strFrame ), cv::Point2f( widthFrame - 290.0f, heightFrame - 30.0f ), cv::FONT_HERSHEY_COMPLEX, 0.6, color );
-   snprintf( strFrame, 50, "FrameIndex = %4d, Mismatched: %3d, Matched: %3d", frameIndex, status._MisMatchedMapPointNum, status._MatchedMapPointNum );
+   snprintf( strFrame, 60, "FrameIndex = %4d, Mismatched: %3d, Matched: %3d", frameIndex, status._MisMatchedMapPointNum, status._MatchedMapPointNum );
    putText( rview, std::string( strFrame ), cv::Point2f( widthFrame - 600.0f, 30.0f ), cv::FONT_HERSHEY_COMPLEX, 0.6, color );
 
    return;
@@ -249,7 +236,7 @@ void Visualiser::WriteGrayBitmap( unsigned char *iImgData, char *iImgName, int i
    iNewWidth = iWidth;
    iNewHeight = iHeight;
    i = iNewWidth % 4 == 0 ? iNewWidth : (4 * (iNewWidth / 4 + 1));
-   fopen_s( &file, iImgName, "wb" );
+   file = fopen( iImgName, "wb" );
    pp = 0x4d42;
    fwrite( &pp, 2, 1, file );
    pp1 = i*iNewHeight + 1078;

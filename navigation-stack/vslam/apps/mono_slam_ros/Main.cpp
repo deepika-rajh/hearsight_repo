@@ -124,6 +124,7 @@ int main( int argc, char** argv )
 
    color_pub.shutdown();
    labeled_img_pub.shutdown();
+   occupancy_img_pub.shutdown();
    rclcpp::shutdown();
    raw_pose_pub = nullptr;
    robot_pose_pub = nullptr;

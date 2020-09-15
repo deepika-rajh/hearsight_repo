@@ -176,8 +176,7 @@ InputCamera_D435i::~InputCamera_D435i()
 
 void InputCamera_D435i::findClocksOffsetForCamera()
 {
-   //int64_t dspClock = (int64_t)getDspClock();
-   realClock = (int64_t)getRealTime();
+   realClock = getRealTime();
    monotonicClock = getMonotonicTime();
    clockOffset = realClock - monotonicClock;
    //printf( "findClocksOffsetForCamera realClock = %" PRId64 ", monotonicClock=%" PRId64 ", clockOffset=%" PRId64 " \n ", realClock, monotonicClock, clockOffset );

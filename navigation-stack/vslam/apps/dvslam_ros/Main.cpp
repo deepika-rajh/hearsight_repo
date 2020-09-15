@@ -38,9 +38,9 @@ image_transport::Publisher    gray_pub;
 image_transport::Publisher    depth_pub;
 image_transport::Publisher    labeled_img_pub;
 image_transport::Publisher    occupancy_img_pub;
-rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub;
-rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
-rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
+rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub = nullptr;
+rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
+rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
 
 int main( int argc, char** argv )
 {
@@ -132,6 +132,7 @@ int main( int argc, char** argv )
    gray_pub.shutdown();
    depth_pub.shutdown();
    labeled_img_pub.shutdown();
+   occupancy_img_pub.shutdown();
    rclcpp::shutdown();
    raw_pose_pub = nullptr;
    robot_pose_pub = nullptr;

@@ -63,7 +63,7 @@ int64_t getMonotonicTime()
 {
 #ifdef ARM_BASED
    struct timespec t;
-   clock_gettime( CLOCK_MONOTONIC, &t );
+   clock_gettime( CLOCK_BOOTTIME, &t );
    uint64_t timeNanoSecMonotonic = t.tv_sec * 1000000000ULL + t.tv_nsec;
    return (int64_t)timeNanoSecMonotonic;
 #else
