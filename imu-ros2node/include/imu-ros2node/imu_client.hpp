@@ -52,12 +52,18 @@ class ImuClient
 public:
     ~ImuClient();
     bool InitMmap();
-    bool GetImuData(struct imu_pack_dsp *imu);
+    bool GetImuData(
+        struct imu_pack_dsp* data_array,
+        int32_t              max_count,
+        int32_t*             returned_sample_count
+    );
     bool ConnectServer();
+    void DisconnectServer();
     bool SendMsgStart(int sensor);
     bool SendMsgStop(int sensor);
     bool SendMsgConfigRate(int rate);
     bool SendMsgConfigDataType(int type);
+    int  ReadMsg(char *buffer, int len);
 private:
     bool SendMsg();
 

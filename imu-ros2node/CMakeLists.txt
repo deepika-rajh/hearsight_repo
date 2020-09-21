@@ -66,12 +66,11 @@ if (CMAKE_CROSSCOMPILING)
     builtin_interfaces__rosidl_generator_c
   )
   target_link_libraries(imu-ros2node PRIVATE
-    bsd
+    pthread
     PocoFoundation
     ${ROS-DASHING}
   )
   target_link_libraries(imu-ros2test PRIVATE
-    bsd
     PocoFoundation
     ${ROS-DASHING}
   )
@@ -83,6 +82,9 @@ else ()
     rclcpp
     sensor_msgs
     geometry_msgs
+  )
+  target_link_libraries(imu-ros2node PRIVATE
+    pthread
   )
   ament_target_dependencies(imu-ros2test
     rclcpp

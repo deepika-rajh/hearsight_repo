@@ -4,9 +4,8 @@
  * Confidential and Proprietary - Qualcomm Technologies, Inc.
  */
 
-#include "rclcpp/rclcpp.hpp"
+#include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include "imu-ros2node/imu_client.hpp"
 
 class ImuTest: public rclcpp::Node
 {
