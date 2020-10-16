@@ -85,8 +85,9 @@ else ()
     sensor_msgs
     geometry_msgs
   )
-  target_link_libraries(imu-ros2node PRIVATE
+  target_link_libraries(imu-ros2node
     pthread
+    imu_client
   )
   ament_target_dependencies(imu-ros2test
     rclcpp
