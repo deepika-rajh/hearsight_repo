@@ -6,7 +6,6 @@ AM_CPPFLAGS = -Werror                           \
               -Wno-unused-variable              \
               -fexceptions                      \
               -I../sensors-client/inc           \
-              -I$(INC_ROOT)/usr/include/glib-2.0 \
               -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat
 
 requiredlibs = -lglib-2.0
