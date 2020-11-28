@@ -20,8 +20,8 @@ endif()
 include_directories (./include)
 
 if (CMAKE_CROSSCOMPILING)
-  set(ament_cmake_core_DIR "${DASHING_DIR}/share/ament_cmake_core/cmake")
-  include (${DASHING_DIR}/share/ament_cmake_core/cmake/ament_cmake_coreConfig.cmake)
+  set(ament_cmake_core_DIR "${DASHING_NATIVE_DIR}/share/ament_cmake_core/cmake")
+  include (${DASHING_NATIVE_DIR}/share/ament_cmake_core/cmake/ament_cmake_coreConfig.cmake)
   include_directories (${SYSROOT_INCDIR})
   include_directories (${SYSROOT_INCDIR}/Poco)
   include_directories (${DASHING_DIR}/include)
@@ -55,7 +55,6 @@ if (CMAKE_CROSSCOMPILING)
     class_loader
     rmw
     rmw_implementation
-    rosidl_generator_c
     rosidl_typesupport_c
     rosidl_typesupport_cpp
     std_msgs__rosidl_generator_c
@@ -64,16 +63,17 @@ if (CMAKE_CROSSCOMPILING)
     sensor_msgs__rosidl_typesupport_cpp
     console_bridge
     builtin_interfaces__rosidl_generator_c
+    libstatistics_collector
+    statistics_msgs__rosidl_typesupport_cpp
+    tracetools
   )
   target_link_libraries(imu-ros2node PRIVATE
     pthread
     imu_client
-    PocoFoundation
     ${ROS-DASHING}
   )
   target_link_libraries(imu-ros2test PRIVATE
     imu_client
-    PocoFoundation
     ${ROS-DASHING}
   )
   install(TARGETS imu-ros2node imu-ros2test
