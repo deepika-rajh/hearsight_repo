@@ -223,8 +223,6 @@ extern "C"
    //------------------------------------------------------------------------------
    typedef enum
    {
-
-      RV_VSLAM_TRACKING_STATE_SCALEESTIMATION = -3,
       RV_VSLAM_TRACKING_STATE_FAILED = -2,
       RV_VSLAM_TRACKING_STATE_INITIALIZING = -1,
       RV_VSLAM_TRACKING_STATE_GREAT = 0,
@@ -239,6 +237,15 @@ extern "C"
 }
 #endif
 
+#ifdef __ARM_NEON__
+#include <arm_neon.h>
+typedef float  float32_t;
+typedef double float64_t;
+#else
+#include <stdint.h>
+typedef float  float32_t;
+typedef double float64_t;
+#endif
 
 
 #endif
