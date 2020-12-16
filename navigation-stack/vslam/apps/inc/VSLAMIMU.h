@@ -10,9 +10,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <thread> 
 #include <mutex>
 #include <memory>
+#include <vector>
 
-#include <sensor-imu/sensor_imu_api.h>
-#include <sensor-imu/sensor_datatypes.h>
+#include "imu_client.hpp"
 
 class IMUReceiver
 {
@@ -27,16 +27,6 @@ public:
     ~VSLAMIMU();
     
     bool init();
-
-    int16_t getData( sensor_imu* dataArray, int32_t max_count, int32_t* available_imu_data )
-    {
-        int16_t result = -1;
-        if( sensorHandlePtr != NULL)
-        {
-            result = sensor_imu_attitude_api_get_imu_raw( sensorHandlePtr, dataArray, max_count, available_imu_data );
-        }
-        return result;
-    }
 
     const int32_t * getAxleSign()
     {
@@ -56,9 +46,13 @@ protected:
 
     void imuProc();
     bool threadRunning;
-    sensor_handle* sensorHandlePtr;
 
     int32_t axleSign[3];
+
+    //time stamp
+    int64_t realClock;
+    int64_t monotonicClock;
+    int64_t clockOffset;
 
     std::shared_ptr<std::thread> imuPollThread;
 

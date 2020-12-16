@@ -90,7 +90,7 @@ int main( int argc, char** argv )
 #endif
 
    //start VSLAM system
-   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false, false);
+   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false);
    sys->Run();
 
    //wait to quit
@@ -102,7 +102,7 @@ int main( int argc, char** argv )
    printf("vslam application exits\n");
    fflush(stdout);
 
-#if ENABLE_MTRACE
+#if ENABLE_MTRACE  
    muntrace();
 #endif
 

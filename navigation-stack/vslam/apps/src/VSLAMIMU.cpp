@@ -15,43 +15,90 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "VSLAMIMU.h"
 #include "VSLAMSystem.h"
 
-float NORM_G = 9.80665f;
+#include "imu_client.hpp"
+#define SAMPLE_RATE  200
+
+#ifdef ROS_BASED
+#include <sensor_msgs/msg/imu.hpp>
+extern rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub;
+
+void publishImuRaw(int64_t ts, float gry_x, float gry_y, float gry_z, float acc_x, float acc_y, float acc_z)
+{
+    rclcpp::Time t = rclcpp::Time(ts, RCL_ROS_TIME);
+    sensor_msgs::msg::Imu imu_msg;
+	  
+    imu_msg.header.stamp = t;
+    imu_msg.header.frame_id = "imu";
+
+    imu_msg.linear_acceleration.x = acc_x;
+    imu_msg.linear_acceleration.y = acc_y;
+    imu_msg.linear_acceleration.z = acc_z;
+    imu_msg.angular_velocity.x = gry_x;
+    imu_msg.angular_velocity.y = gry_y;
+    imu_msg.angular_velocity.z = gry_z;
+    imu_pub->publish(imu_msg);
+}
+#endif
 
 void VSLAMIMU::imuProc()
 {
-   sensor_mpu_driver_settings imuSettings;
-   sensor_imu_attitude_api_get_mpu_driver_settings( this->sensorHandlePtr, &imuSettings );
-   if( imuSettings.is_initialized != 1 )
-   {
-       printf( "imu driver not initialized imuSettings.is_initialized=%d \n", imuSettings.is_initialized );
-       return;
-   }
-   
-   printf("imu settings: \n");
-   printf( "sample_rate_in_hz:  %d\n", imuSettings.sample_rate_in_hz );
-   printf( "compass_sample_rate_in_hz:  %d\n", imuSettings.compass_sample_rate_in_hz );
-   printf( "accel_lpf_in_hz:  %d\n", imuSettings.accel_lpf_in_hz );
-   printf( "gyro_lpf_in_hz:  %d\n", imuSettings.gyro_lpf_in_hz );
-   
-   int64_t realClock = (int64_t)getRealTime();
-   int64_t monotonicClock = getMonotonicTime();
+    ImuClient _imu_client;
+    struct imu_pack_dsp imu_data[64];
+    int32_t pack_num = 0;
+    int rate = SAMPLE_RATE;
 
-    int numSamples = 0;
+    if (!_imu_client.InitMmap()) {
+         printf("imu: init mmap failed");
+        return;
+    }
+
+    if (!_imu_client.ConnectServer()) {
+         printf("imu: connect imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgConfigDataType(ACCEL_TYPE)) {
+         printf("imu: send acc CONFIG_TYPE to imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgConfigRate(rate)) {
+         printf("imu: send acc CONFIG_RATE to imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgConfigDataType(ACCEL_TYPE)) {
+         printf("imu: send gyro CONFIG_TYPE to imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgConfigRate(rate)) {
+         printf("imu: send gyro CONFIG_RATE to imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgStart(ACCEL_TYPE)) {
+         printf("send START accel to imud failed");
+        return;
+    }
+
+    if (!_imu_client.SendMsgStart(GYRO_TYPE)) {
+         printf("send START gyro to imud failed");
+        return;
+    }
+
     float accVal[3], gyrVal[3];
     float delta = 0.f;
-    sensor_imu* calData = NULL;
-    calData = new sensor_imu[64];
-
     int64_t lastTimeStamp = 0;
-    while( threadRunning)
-    { 
-    	getData( calData, 64, &numSamples );
 
-        for( int j = 0; j < numSamples; ++j )
+    while(threadRunning)
+    {
+        _imu_client.GetImuData(imu_data, 64, &pack_num);
+
+        for( int j = 0; j < pack_num; ++j )
         {
-        	sensor_imu * curData = (sensor_imu *)calData + j;
-            int64_t curTimeStampNs = (int64_t)curData->timestamp_in_us * 1000;
-            //printf( "time %" PRIu64 "\n", curData->timestamp_in_us );
+            int64_t curTimeStampNs = imu_data[j].time_acc + clockOffset;
+            //printf( "*** get imu data, ts %ld\n", curTimeStampNs );
             if( lastTimeStamp != 0 )
             {
                 delta = (curTimeStampNs - lastTimeStamp)*1e-6f;
@@ -60,38 +107,39 @@ void VSLAMIMU::imuProc()
             }
             lastTimeStamp = curTimeStampNs;
             //Assume that we have both accel and gyro every sample.
-            accVal[0] = curData->linear_acceleration[0] * NORM_G * axleSign[0];
-            accVal[1] = curData->linear_acceleration[1] * NORM_G * axleSign[1];
-            accVal[2] = curData->linear_acceleration[2] * NORM_G * axleSign[2];
-            gyrVal[0] = curData->angular_velocity[0] * axleSign[0];
-            gyrVal[1] = curData->angular_velocity[1] * axleSign[1];
-            gyrVal[2] = curData->angular_velocity[2] * axleSign[2];
+            accVal[0] = imu_data[j].acceloration_x * axleSign[0];
+            accVal[1] = imu_data[j].acceloration_y * axleSign[1];
+            accVal[2] = imu_data[j].acceloration_z * axleSign[2];
+            gyrVal[0] = imu_data[j].angular_velocity_x * axleSign[0];
+            gyrVal[1] = imu_data[j].angular_velocity_y * axleSign[1];
+            gyrVal[2] = imu_data[j].angular_velocity_z * axleSign[2];
 
             for( size_t i = 0; i < receiverVector.size(); i++ )
             {
                receiverVector[i]->addIMU( accVal, gyrVal, curTimeStampNs );
             }
             
-            //VPUBLISH_RAW_IMU( curTimeStampNs, gyrVal[0], gyrVal[1], gyrVal[2], accVal[0], accVal[1], accVal[2] );
+            #ifdef ROS_BASED
+            publishImuRaw( curTimeStampNs, gyrVal[0], gyrVal[1], gyrVal[2], accVal[0], accVal[1], accVal[2] );
+            #endif
             
         }
 
         VSLAM_SLEEP( 20 );
     }
-
-    if(sensorHandlePtr)
-        sensor_imu_attitude_api_terminate( sensorHandlePtr );
-    delete[]( sensor_imu * )calData;
 }
 
 VSLAMIMU::VSLAMIMU(int32_t sign[3])
 {
-    sensorHandlePtr = NULL;
     axleSign[0] = sign[0];
     axleSign[1] = sign[1];
     axleSign[2] = sign[2];
 
     threadRunning = false;
+
+    realClock = getRealTime();
+    monotonicClock = getMonotonicTime();
+    clockOffset = realClock - monotonicClock;
 }
 
 
@@ -101,37 +149,6 @@ VSLAMIMU::~VSLAMIMU()
 
 bool VSLAMIMU::init()
 {
-    int16_t ret;
-    int16_t imuNums = 0;
-    int16_t assignedIMUID = 1;
-
-    printf( "initializing sensor imu\n" );
-    ret = sensor_imu_api_attitude_get_registered_imu_count( &imuNums );
-    const char* imuSevVer = sensor_imu_attitude_api_get_server_version();
-    printf( "Get imu number , result %d,imu server version %s \n", imuNums, imuSevVer);
-    sensor_imu_id  imuList[5]; // our max imu list is 3. so 5 is large enough.
-    ret = sensor_imu_attitude_api_get_imu_ids( imuList, 5, &imuNums );
-    printf( "GET IMU ID INFO , total id %d, expeced to use %d  \n", imuNums, assignedIMUID);
-    for( int16_t i = 0; i<imuNums; i++ )
-    {
-       printf( "IMU id %d, desc %s\n", i, imuList[i].imu_description );
-    }
-    sensorHandlePtr = sensor_imu_attitude_api_get_imu_handle( assignedIMUID);
-
-    ret = sensor_imu_attitude_api_initialize( sensorHandlePtr, SENSOR_CLOCK_SYNC_TYPE_REALTIME );
-    printf( "initialize the imu server api result : %d \n", ret);
-    if(ret)
-       return false;
-
-    ret = sensor_imu_attitude_api_wait_on_driver_init( sensorHandlePtr);
-    printf( "Wait imu server drier init result : %d \n", ret );
-    if(ret)
-       return false;
-    
-    //int rmatsz = 9;
-    //ret = sensor_imu_attitude_api_imu_frame_to_body_frame_rotation_matrix( pImuServer, rmat, rmatsz );
-    //printf( " imu to body matrix: return %d (%f %f %f)( %f %f %f)( %f %f %f) \n", ret, rmat[0], rmat[1], rmat[2], rmat[3], rmat[4], rmat[5], rmat[6], rmat[7], rmat[8] );
-
     return true;
 }
 
@@ -145,12 +162,7 @@ void VSLAMIMU::stop() {
 
 void VSLAMIMU::start() {
     threadRunning = true;
-
     init();
-    if( !sensorHandlePtr )
-    {
-        printf( "imu instance not initialized \n" );
-    }
 
     imuPollThread = std::make_shared<std::thread>(std::mem_fn(&VSLAMIMU::imuProc), this);
 }

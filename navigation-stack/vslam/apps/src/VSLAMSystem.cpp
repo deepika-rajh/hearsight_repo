@@ -25,7 +25,9 @@ bool VSLAMSystem::showImg = false;
 //std::shared_ptr<rvVWSLAM> VSLAMSystem::vslamPtr = nullptr;
 rvVWSLAM *VSLAMSystem::vslamPtr = nullptr;
 std::shared_ptr<VSLAMSystem> VSLAMSystem::t = nullptr;
+#ifdef IMU_SUPPORTED
 std::shared_ptr<VSLAMIMU> VSLAMSystem::imu = nullptr;
+#endif
 std::shared_ptr<VSLAMWheel> VSLAMSystem::wheel = nullptr;
 std::shared_ptr<VSLAMHijack> VSLAMSystem::hijack = nullptr;
 //std::shared_ptr<rvVWSLAM> VSLAMSystem::vwSLAM = nullptr;
@@ -34,13 +36,16 @@ std::shared_ptr<Visualiser> VSLAMSystem::viz = nullptr;
 std::string VSLAMSystem::rootPath = "";
 std::string VSLAMSystem::outputPath = "";
 rvCameraParams VSLAMSystem::configuration;
-bool VSLAMSystem::doMapping = false;
 #define PLAYBACK_CONFIGURATION "Configuration/vslam.cfg"
 #ifdef ARM_BASED
 #ifdef ENABLE_DEPTH
 std::shared_ptr<InputCamera_D435i> VSLAMSystem::inputCamera = nullptr;
 #else
+#ifdef ENABLE_KINECT
+std::shared_ptr<InputCamera_Kinect2> VSLAMSystem::inputCamera = nullptr;
+#else
 std::shared_ptr<InputCamera_OV9282> VSLAMSystem::inputCamera = nullptr;
+#endif
 #endif
 #else
 std::shared_ptr<camera::VirtualSensorDevice> VSLAMSystem::inputCamera = nullptr;
@@ -150,6 +155,7 @@ void VSLAMSystem::state_callback(const std_msgs::msg::String::SharedPtr msg) con
 
 VSLAMSystem::~VSLAMSystem()
 {
+   deinit();
 }
 
 void VSLAMSystem::deinit()
@@ -159,7 +165,9 @@ void VSLAMSystem::deinit()
    inputCamera = nullptr;
    wheel = nullptr;
    hijack = nullptr;
+#ifdef IMU_SUPPORTED
    imu = nullptr;
+#endif
    vslamPtr = nullptr;
 }
 
@@ -170,7 +178,11 @@ VSLAMSystem::VSLAMSystem()
 #ifdef ENABLE_DEPTH
    inputCamera = std::make_shared<InputCamera_D435i>();
 #else
+#ifdef ENABLE_KINECT
+   inputCamera = std::make_shared<InputCamera_Kinect2>();
+#else
    inputCamera = std::make_shared<InputCamera_OV9282>( PLAYBACK_CONFIGURATION );
+#endif
 #endif
 
    if( inputCamera )
@@ -195,7 +207,7 @@ VSLAMSystem::VSLAMSystem()
 #endif
 }
 
-std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, const std::string & outputDir, bool _showImg, const bool mapping )
+std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, const std::string & outputDir, bool _showImg )
 {
    rootPath = root;
    outputPath = outputDir;
@@ -219,7 +231,7 @@ std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, 
          hijack->addReceiver( tmp );
       }
 
-      vslamPtr = rvVWSLAM_Initialize( root.c_str(), outputPath.c_str(), &configuration, mapping );
+      vslamPtr = rvVWSLAM_Initialize( root.c_str(), outputPath.c_str(), &configuration );
 
 #ifdef IMU_SUPPORTED
       int32_t imuAxleSign[3] = { 1, 1, -1 }; //need to be read from configuration file in future
@@ -241,8 +253,6 @@ std::shared_ptr<VSLAMSystem> VSLAMSystem::Initialize( const std::string & root, 
 #endif
    }
 
-   VSLAMSystem::doMapping = mapping;
-
    return t;
 }
 
@@ -250,9 +260,10 @@ void VSLAMSystem::Run()
 {
    if( systemState == KSTOPPING )
       return;
-
+#ifdef IMU_SUPPORTED
    if( imu )
       imu->start();
+#endif
    if( wheel )
       wheel->start();
    if( hijack )
@@ -329,7 +340,6 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       isInitDone = true;
    }
 
-   rvVWSLAMStatus status;
    rvVSLAMPose rawPose, robotPose;
 
    rvVWSLAM_AddImage(vslamPtr, timestamp, imageBuf, depthBuf);
@@ -354,19 +364,41 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    }
 
 #ifndef WIN32
-   rvVWSLAM_getUndistortedImage(vslamPtr, viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
-   rvVWSLAM_GetVWSLAMStatus(vslamPtr, &status);
+   rvVWSLAMStatus status;
+   rvVWSLAM_GetUndistortedImage( vslamPtr, viz->getUndistortedImageBuf(), viz->getImageWidth(), viz->getImageHeight() );
+   int brightness = 0;
+   for( int i = 0, pixelIn = 0; i < viz->getImageHeight(); i++ )
+      for( int j = 0; j < viz->getImageWidth(); j++, pixelIn++ )
+         brightness += viz->getUndistortedImageBuf()[pixelIn];
+   status._Brightness = brightness / (viz->getImageWidth()* viz->getImageHeight());
+   status._KeyframeNum = rvVWSLAM_GetKeyframeNumber( vslamPtr );
+   status._ObservationBuf = NULL;
+   status._MatchedMapPointNum = status._MisMatchedMapPointNum = 0;
+   int obsNum = rvVWSLAM_GetVWSLAMObservations( vslamPtr, status._ObservationBuf, 0 );
+   if( obsNum > 0 )
+   {
+      status._ObservationBuf = new RV_TrackedObservation[obsNum];
+      obsNum = rvVWSLAM_GetVWSLAMObservations( vslamPtr, status._ObservationBuf, obsNum );
+      for( int i = 0; i < obsNum; i++ )
+      {
+         if( status._ObservationBuf[i].s == RV_TrackedObservation::MATCHING_OK )
+         {
+            status._MatchedMapPointNum++;
+         }
+         else
+         {
+            status._MisMatchedMapPointNum++;
+         }
+      }
+   }
    viz->ShowPoints( rawPose.poseQuality, "points", status );
+
+   if( status._ObservationBuf )
+      delete status._ObservationBuf;
 #endif
 
-   if( VSLAMSystem::isMappingEnabled() )
-   {
-	   rvVWSLAM_getGridImage(vslamPtr, viz->getVisData(), viz->getVisWidthAddr(), viz->getVisHeightAddr() );
-	   viz->ShowGridMap();
-   }
-
-   if (status.observationBuf )
-      delete status.observationBuf;
+   rvVWSLAM_getGridImage( vslamPtr, viz->getVisData(), viz->getVisWidthAddr(), viz->getVisHeightAddr() );
+   viz->ShowGridMap();
 }
 
 void

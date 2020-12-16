@@ -21,6 +21,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <sensor_msgs/image_encodings.hpp>
 #include <image_transport/image_transport.h>
 #include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 
 bool debugLevel = 0;
 static char *helpMsg =
@@ -41,6 +42,7 @@ image_transport::Publisher    occupancy_img_pub;
 rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub = nullptr;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
+rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub = nullptr;
 
 int main( int argc, char** argv )
 {
@@ -94,6 +96,7 @@ int main( int argc, char** argv )
    cam_info_pub = g_node.get()->create_publisher<sensor_msgs::msg::CameraInfo>("camera/camera_info", 1);
    raw_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("vslam_odom_raw", 5);
    robot_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("robot_odom", 5);
+   imu_pub = g_node.get()->create_publisher<sensor_msgs::msg::Imu>("sensor_imu", 30);
 
    char tmp = *(output.end() - 1);
    if( tmp != '/' && tmp != '\\' )
@@ -115,7 +118,7 @@ int main( int argc, char** argv )
    InputWheelROS wheel;
 
    //start VSLAM system
-   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false, true);
+   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false);
    sys->Run();
 
    //wait to quit
@@ -137,6 +140,7 @@ int main( int argc, char** argv )
    raw_pose_pub = nullptr;
    robot_pose_pub = nullptr;
    cam_info_pub = nullptr;
+   imu_pub = nullptr;
    g_node = nullptr;
    printf("release ros node done\n");
    return 0;

@@ -183,9 +183,9 @@ void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_
          cv::Point2f imagePoint;
          for( int i = 0; i < obsNum; i++ )
          {
-            imagePoint.x = status.observationBuf[i].x;
-            imagePoint.y = status.observationBuf[i].y;
-            if( status.observationBuf[i].s == RV_TrackedObservation::RV_OBSERVATION_STATE::MATCHING_OK)
+            imagePoint.x = status._ObservationBuf[i].x;
+            imagePoint.y = status._ObservationBuf[i].y;
+            if( status._ObservationBuf[i].s == RV_TrackedObservation::RV_OBSERVATION_STATE::MATCHING_OK)
             {
                circle( rview, imagePoint, 4, cv::Scalar( 0, 255, 0 ) ); //green: good feature
             }
@@ -201,7 +201,6 @@ void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_
    cv::Scalar color( 255, 0, 0 );
    if(RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_FAILED == quality ||
 	   RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_INITIALIZING == quality
-       || RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_SCALEESTIMATION == quality
        )
    {
       color = cv::Scalar( 0, 0, 255 ); //red

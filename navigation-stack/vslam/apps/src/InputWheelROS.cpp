@@ -38,7 +38,7 @@ void InputWheelROS::wheelOdomCallback( const nav_msgs::msg::Odometry::SharedPtr 
    wheelodom.direction[2] = msg->pose.pose.orientation.z;
    wheelodom.direction[3] = msg->pose.pose.orientation.w;
    wheelodom.linear_velocity = msg->twist.twist.linear.x;
-   wheelodom.angular_velocity = msg->twist.twist.linear.z;
+   wheelodom.angular_velocity = msg->twist.twist.angular.z;
    wheelodom.timestamp = t.nanoseconds();
    wheelDataArray.check_push(wheelodom);
 }

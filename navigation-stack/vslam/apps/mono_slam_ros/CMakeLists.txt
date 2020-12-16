@@ -5,7 +5,6 @@ set( RV_VWSLAM_ROS_SRC
      ../src/SystemTime.cpp
      ../src/InputCamera_ov9282.cpp
      ../src/VSLAMIMU.cpp
-     ../src/InputIMU.cpp
      ../src/VSLAMWheel.cpp
      ../src/VSLAMHijack.cpp
      ../src/Visualization.cpp
@@ -13,6 +12,7 @@ set( RV_VWSLAM_ROS_SRC
      )
 
 add_definitions(-DARM_BASED)
+add_definitions(-DIMU_SUPPORTED)
 add_definitions(-DROS_BASED)
 add_definitions(-DWHEEL_SUPPORTED)
 add_definitions(-DOPENCV_ENABLED)
@@ -38,6 +38,7 @@ add_executable( ${RV_VWSLAM_ROS} ${RV_VWSLAM_ROS_SRC} )
 
 target_link_libraries(${RV_VWSLAM_ROS}
   rv mv3
+  imu_client
   ${GSTREAMER_LIBRARIES} ${GST_APP_LIBRARIES}
   pthread dl
   rclcpp

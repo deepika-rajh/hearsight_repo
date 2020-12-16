@@ -263,17 +263,17 @@ void InputCamera_OV9282::getRawImgProc()
 }
 
 static unsigned char gray_buf[IMAGE_WIDTH * IMAGE_HEIGHT];
-static int64_t raw_img_last_ts = 0;
+static int64_t raw_img_last_ts = 0; 
 GstFlowReturn InputCamera_OV9282::new_sample_cb (GstElement *sink, gpointer userdata)
 {
     GstElement *pipeline = GST_ELEMENT (userdata);
     GstSample *sample = NULL;
     GstBuffer *buffer = NULL;
     GstMapInfo info;
-    int64_t ts;
+    int64_t ts; 
 
-    //GstClock * clock = gst_system_clock_obtain();
-    //GstClockTime ct1 = gst_clock_get_time(clock);
+    GstClock * clock = gst_system_clock_obtain();
+    GstClockTime ct1 = gst_clock_get_time(clock);
     //gst_object_unref(clock);
 
    #ifdef ROS_BASED
@@ -301,7 +301,7 @@ GstFlowReturn InputCamera_OV9282::new_sample_cb (GstElement *sink, gpointer user
     gsize &buf_size = info.size;
     guint8* &buf_data = info.data;
     //printf("*** phil, image buf size %lu\n", buf_size);
-
+	  
     //prepare data
     guint8* desc_tmp = (guint8*)gray_buf;
     guint8* src_tmp = info.data;
@@ -321,18 +321,19 @@ GstFlowReturn InputCamera_OV9282::new_sample_cb (GstElement *sink, gpointer user
     gst_buffer_unmap (buffer, &info);
     gst_sample_unref (sample);
 
-    //GstClockTime ct2 = gst_clock_get_time(clock);
-    //gst_object_unref(clock);
-    //int64_t callback_duration = GST_TIME_AS_USECONDS(ct2) - GST_TIME_AS_USECONDS(ct1);
-    //printf("new_sample_cb interval %ldus\n", callback_duration);
+    GstClockTime ct2 = gst_clock_get_time(clock);
+    gst_object_unref(clock);
+    int64_t callback_duration = GST_TIME_AS_USECONDS(ct2) - GST_TIME_AS_USECONDS(ct1);
+    printf("new_sample_cb interval %ldus\n", callback_duration);
 
     #ifdef ROS_BASED
     t = rclcpp::Time(ts, RCL_ROS_TIME);
+		  
     publishColor(gray_buf, t);
     #endif
 
     callback( ts, gray_buf, NULL );
-
+    
     return GST_FLOW_OK;
 }
 
@@ -369,7 +370,7 @@ void InputCamera_OV9282::error_callback (GstBus *bus, GstMessage *msg, gpointer 
     gst_object_default_error (GST_MESSAGE_SRC (msg), error, debug);
 
     g_free (debug);
-    g_error_free (error);
+    g_error_free (error);	
 
     g_main_loop_quit (mloop);
 }
@@ -390,8 +391,7 @@ bool InputCamera_OV9282::setup_pipeline()
 
     char pipeline_str[256];
     snprintf(pipeline_str, sizeof(pipeline_str),
-         "qtiqmmfsrc name=camera camera=1 ! video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12 ! \
-          appsink name=sink enable-last-sample=false sync=false async=false emit-signals=true",
+         "qtiqmmfsrc name=camera camera=1 ! video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12 ! appsink name=sink enable-last-sample=false async=false emit-signals=true",
            IMAGE_WIDTH, IMAGE_HEIGHT, FPS);
 
     gst_pipeline = gst_parse_launch (pipeline_str, &error);

@@ -5,7 +5,6 @@ set( RV_VWSLAM_SRC
      ../src/SystemTime.cpp
      ../src/InputCamera_ov9282.cpp
      ../src/VSLAMIMU.cpp
-     ../src/InputIMU.cpp
      ../src/VSLAMWheel.cpp
      ../src/VSLAMHijack.cpp
      ../src/Visualization.cpp
@@ -18,6 +17,7 @@ pkg_check_modules(GST_APP REQUIRED gstreamer-app-1.0)
 include_directories(${GLIB_INCLUDE_DIRS} ${GST_APP_INCLUDE_DIRS})
 
 add_definitions(-DARM_BASED)
+#add_definitions(-DIMU_SUPPORTED)
 #add_definitions(-DOPENCV_TEST)
 
 if (CMAKE_CROSSCOMPILING)
@@ -31,6 +31,7 @@ add_executable( ${RV_VWSLAM} ${RV_VWSLAM_SRC} )
 
 target_link_libraries(${RV_VWSLAM}
 	rv mv3
+        imu_client
 	${GSTREAMER_LIBRARIES} ${GST_APP_LIBRARIES}
 	pthread dl
 	)

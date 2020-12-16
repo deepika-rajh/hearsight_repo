@@ -15,7 +15,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #endif
 
 #include <rvVWSLAM.h>
+#ifdef IMU_SUPPORTED
 #include "VSLAMIMU.h"
+#endif
 #include "VSLAMWheel.h"
 #include "VSLAMHijack.h"
 #include "Visualization.h"
@@ -25,7 +27,11 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #ifdef ENABLE_DEPTH
 #include "InputCamera_D435i.h"
 #else
+#ifdef ENABLE_KINECT
+#include "InputCamera_Kinect2.h"
+#else
 #include "InputCamera_ov9282.h"
+#endif
 #endif
 #else
 #include "VirtualSensorDevice.h"
@@ -52,11 +58,14 @@ inline void mySleep( int x )
 #define VSLAM_SLEEP(x)  usleep(x*1000)
 #endif //WIN32
 
-
+#ifndef IMU_SUPPORTED
+class VSLAMSystem: public WheelOdomReceiver, public HijackReceiver
+#else
 class VSLAMSystem: public WheelOdomReceiver, public IMUReceiver, public HijackReceiver
+#endif
 {
 public:
-   static std::shared_ptr<VSLAMSystem> Initialize( const std::string & root, const std::string & outputDir, bool _showImg, const bool doMapping );
+   static std::shared_ptr<VSLAMSystem> Initialize( const std::string & root, const std::string & outputDir, bool _showImg );
 
    static void Stop(int sig)
     {
@@ -73,8 +82,10 @@ public:
     static void Quit(void) {
        rvVWSLAM_Stop(vslamPtr);
 
+#ifdef IMU_SUPPORTED
         if( imu )
            imu->stop();
+#endif
         if( wheel )
            wheel->stop();
         //wod->stop();
@@ -114,11 +125,6 @@ public:
     //   return rvVWSLAM_GetWallAngle();
     //}
 
-    static bool isMappingEnabled()
-    {
-       return doMapping;
-    }
-
     //static std::shared_ptr<rvVWSLAM> vslamPtr;
 
     static rvVWSLAM* vslamPtr;
@@ -134,7 +140,9 @@ private:
     //std::shared_ptr<rvVWSLAM> vslamPtr;
     static std::shared_ptr<VSLAMSystem> t;
     //rvVWSLAM *vwSLAM = nullptr;
+#ifdef IMU_SUPPORTED
     static std::shared_ptr<VSLAMIMU> imu;
+#endif
     static std::shared_ptr<VSLAMWheel> wheel;
     static std::shared_ptr<VSLAMHijack> hijack;
     static std::shared_ptr<Visualiser> viz;
@@ -145,7 +153,11 @@ private:
 #ifdef ENABLE_DEPTH
     static std::shared_ptr<InputCamera_D435i> inputCamera;
 #else
+#ifdef ENABLE_KINECT
+    static std::shared_ptr<InputCamera_Kinect2> inputCamera;
+#else
     static std::shared_ptr<InputCamera_OV9282> inputCamera;
+#endif
 #endif
 #else
     static std::shared_ptr<camera::VirtualSensorDevice> inputCamera;
@@ -165,7 +177,6 @@ private:
     void addHijack( bool status, int64_t timestamp );
     static rvCameraParams configuration;
 
-    static bool doMapping;
 #ifdef ROS_BASED
     void state_callback(const std_msgs::msg::String::SharedPtr msg) const;
 #endif

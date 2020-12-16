@@ -5,7 +5,6 @@ set( RV_DVSLAM_ROS_SRC
      ../src/SystemTime.cpp
      ../src/InputCamera_D435i.cpp
      ../src/VSLAMIMU.cpp
-     ../src/InputIMU.cpp
      ../src/VSLAMWheel.cpp
      ../src/VSLAMHijack.cpp
      ../src/Visualization.cpp
@@ -32,6 +31,7 @@ add_executable( ${RV_DVSLAM_ROS} ${RV_DVSLAM_ROS_SRC} )
 
 target_link_libraries(${RV_DVSLAM_ROS}
   rv mv3
+  imu_client
   realsense2
   pthread dl
   rclcpp
