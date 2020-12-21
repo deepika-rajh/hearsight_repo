@@ -38,7 +38,7 @@ endif ()
 add_executable(imu-ros2node src/imu_node.cpp)
 add_executable(imu-ros2test src/imu_node_test.cpp)
 
-if (CMAKE_CROSSCOMPILING)
+if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
   set(ROS-DASHING
     rclcpp
     rcutils
@@ -74,6 +74,47 @@ if (CMAKE_CROSSCOMPILING)
   )
   target_link_libraries(imu-ros2test PRIVATE
     imu_client
+    ${ROS-DASHING}
+  )
+  install(TARGETS imu-ros2node imu-ros2test
+    RUNTIME DESTINATION ${INSTALL_LIBDIR}/${PROJECT_NAME}
+  )
+elseif (CMAKE_CROSSCOMPILING)
+  set(ROS-DASHING
+    rclcpp
+    rcutils
+    yaml
+    rcl
+    rcl_interfaces__rosidl_generator_c
+    rcl_interfaces__rosidl_typesupport_c
+    rcl_interfaces__rosidl_typesupport_cpp
+    rcl_logging_noop
+    rcl_yaml_param_parser
+    rosgraph_msgs__rosidl_typesupport_cpp
+    message_filters
+    ament_index_cpp
+    class_loader
+    rmw
+    rmw_implementation
+    rosidl_generator_c
+    rosidl_typesupport_c
+    rosidl_typesupport_cpp
+    std_msgs__rosidl_generator_c
+    std_msgs__rosidl_typesupport_c
+    std_msgs__rosidl_typesupport_cpp
+    sensor_msgs__rosidl_typesupport_cpp
+    console_bridge
+    builtin_interfaces__rosidl_generator_c
+  )
+  target_link_libraries(imu-ros2node PRIVATE
+    pthread
+    imu_client
+    PocoFoundation
+    ${ROS-DASHING}
+  )
+  target_link_libraries(imu-ros2test PRIVATE
+    imu_client
+    PocoFoundation
     ${ROS-DASHING}
   )
   install(TARGETS imu-ros2node imu-ros2test
