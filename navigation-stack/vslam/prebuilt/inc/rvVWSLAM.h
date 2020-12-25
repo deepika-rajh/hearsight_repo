@@ -44,7 +44,7 @@ extern "C"
 {
 #endif
 
-
+   
    //==============================================================================
    /// @detailed
    ///     Visual Wheeled Simultaneous Localization And Mapping (VSLAM).
@@ -58,7 +58,7 @@ extern "C"
       int32_t _KeyframeNum = 0;
       int32_t _MatchedMapPointNum = 0;
       int32_t _MisMatchedMapPointNum = 0;
-      RV_TrackedObservation *observationBuf = NULL;
+      RV_TrackedObservation * _ObservationBuf = NULL;
    } rvVWSLAMStatus;
 
    //------------------------------------------------------------------------------
@@ -69,7 +69,7 @@ extern "C"
    /// @return
    ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
    //------------------------------------------------------------------------------
-   RV_API rvVWSLAM *rvVWSLAM_Initialize(const char* root, const char * output, const rvCameraParams * cameraConfig, const bool doMapping);
+   RV_API rvVWSLAM *rvVWSLAM_Initialize(const char* root, const char * output, const rvCameraParams * cameraConfig);
 
 
    //------------------------------------------------------------------------------
@@ -209,15 +209,29 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get status of VWSLAM object.
+   ///     Get keyframe number of VWSLAM object.
    /// @param pObj
    ///     Pointer to VWSLAM object.
-   /// @param status
-   ///     Pass reference of status
    /// @return
-   ///     Return true if succeeded or false if failed
+   ///     Return number of keyframes if succeeded or 0 if failed
    //------------------------------------------------------------------------------
-   RV_API bool rvVWSLAM_GetVWSLAMStatus( rvVWSLAM *pObj, rvVWSLAMStatus *status );
+   RV_API int rvVWSLAM_GetKeyframeNumber( rvVWSLAM *pObj );
+
+
+   //------------------------------------------------------------------------------
+   /// @detailed
+   ///     Get observations of VWSLAM object.
+   /// @param pObj
+   ///     Pointer to VWSLAM object.
+   /// @param observationBuf
+   ///     pointer to the buffer for observations
+   /// @param bufLength
+   ///     length of the buffer for observations
+   /// @return
+   ///     Return only number of observations if bufflengt is 0 or observationBuf is null pointer
+   ///     else return the number of obsrvations and fill the buffer with observations
+   //------------------------------------------------------------------------------
+   RV_API int rvVWSLAM_GetVWSLAMObservations( rvVWSLAM *pObj, RV_TrackedObservation *observationBuf, int bufLength );
 
 
    //------------------------------------------------------------------------------
@@ -246,15 +260,6 @@ extern "C"
    ///     True if the map is successfully saved. False otherwise.
    //------------------------------------------------------------------------------
    bool RV_API rvVWSLAM_SaveMap( rvVWSLAM *pObj, const char* mapFolder, const char* mapName );
-
-
-   //------------------------------------------------------------------------------
-   /// @detailed
-   ///     get undistortorted image.
-   /// @param pObj
-   ///     Pointer to rvVWSLAM object, image, size of image.
-   //------------------------------------------------------------------------------
-   RV_API bool rvVWSLAM_getUndistortedImage(rvVWSLAM *pObj, uint8_t * img, int imageWidth, int imageHeight);
 
    //------------------------------------------------------------------------------
    /// @detailed
