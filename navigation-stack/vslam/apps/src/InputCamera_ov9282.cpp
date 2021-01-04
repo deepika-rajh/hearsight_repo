@@ -391,7 +391,7 @@ bool InputCamera_OV9282::setup_pipeline()
 
     char pipeline_str[256];
     snprintf(pipeline_str, sizeof(pipeline_str),
-         "qtiqmmfsrc name=camera camera=1 ! video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12 ! appsink name=sink enable-last-sample=false async=false emit-signals=true",
+         "qtiqmmfsrc name=camera camera=1 ! video/x-raw, width=%d, height=%d, framerate=%d/1, format=NV12 ! appsink name=sink enable-last-sample=false async=false sync=false emit-signals=true",
            IMAGE_WIDTH, IMAGE_HEIGHT, FPS);
 
     gst_pipeline = gst_parse_launch (pipeline_str, &error);
