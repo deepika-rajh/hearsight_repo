@@ -17,7 +17,13 @@ add_definitions(-DROS_BASED)
 add_definitions(-DWHEEL_SUPPORTED)
 add_definitions(-DOPENCV_ENABLED)
 
-if (CMAKE_CROSSCOMPILING)
+
+if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
+    include_directories (${DASHING_DIR}/include)
+    link_directories(${DASHING_DIR}/lib)
+    set(OpenCV_DIR "/usr/include/opencv4/build")
+    find_package(OpenCV REQUIRED)
+elseif (CMAKE_CROSSCOMPILING)
     include_directories (${DASHING_DIR}/include)
     link_directories(${DASHING_DIR}/lib)
 else ()
@@ -58,7 +64,6 @@ target_link_libraries(${RV_VWSLAM_ROS}
   class_loader
   rmw
   rmw_implementation
-  rosidl_generator_c
   rosidl_typesupport_c
   rosidl_typesupport_cpp
   console_bridge
@@ -67,13 +72,26 @@ target_link_libraries(${RV_VWSLAM_ROS}
   cv_bridge
   )
 
-if (CMAKE_CROSSCOMPILING)
+
+if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
     target_link_libraries(${RV_VWSLAM_ROS}
-    rcl_logging_noop
+        rosidl_runtime_c
+        opencv_imgproc
+        libstatistics_collector
+        statistics_msgs__rosidl_typesupport_cpp
+        rcl_logging_noop
+        tracetools
+        ${opencv_libs}
     )
+elseif (CMAKE_CROSSCOMPILING)
+    target_link_libraries(${RV_VWSLAM_ROS}
+        rosidl_generator_c
+        rcl_logging_noop
+     )
 else ()
     target_link_libraries(${RV_VWSLAM_ROS}
-        tracetools
+	 tracetools
+	 rosidl_generator_c
         ${OpenCV_LIBS}
     )
 endif()
