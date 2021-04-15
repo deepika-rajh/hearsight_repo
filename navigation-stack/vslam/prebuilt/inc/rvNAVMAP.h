@@ -23,7 +23,7 @@ extern "C"
 	/// @detailed
 	///     Navigation Mapping
 	//==============================================================================
-	typedef struct rvNAVMAP rvNAVMAP;
+	typedef struct NAVMAP rvNAVMAP;
 
 	//------------------------------------------------------------------------------
 	/// @detailed
