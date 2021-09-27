@@ -8,7 +8,6 @@
 #include "dfs_factory.h"
 #include "rvDFS.h"
 #include "rvLog.h"
-#include "../../../src/DFS/inc/rv_dfs_accuracy_evaluator.h"
 #ifdef __LINUX__
 #include <getopt.h>
 #endif

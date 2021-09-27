@@ -18,7 +18,7 @@ add_definitions(-DWHEEL_SUPPORTED)
 add_definitions(-DOPENCV_ENABLED)
 
 
-if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
+if (CMAKE_CROSSCOMPILING AND ROS_ENABLED)
     include_directories (${DASHING_DIR}/include)
     link_directories(${DASHING_DIR}/lib)
     set(OpenCV_DIR "/usr/include/opencv4/build")
@@ -73,7 +73,7 @@ target_link_libraries(${RV_VWSLAM_ROS}
   )
 
 
-if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
+if (CMAKE_CROSSCOMPILING AND ROS_ENABLED)
     target_link_libraries(${RV_VWSLAM_ROS}
         rosidl_runtime_c
         opencv_imgproc
