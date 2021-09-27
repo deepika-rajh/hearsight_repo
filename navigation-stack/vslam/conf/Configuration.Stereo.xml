@@ -1,0 +1,80 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<Configuration>
+    
+    <!--
+    sample configuration file for mvDFS to modify FCVF parameters
+    -->
+
+    <Stereo
+      doOcclusions="true"
+      minDisparity="1"
+      numDisparityLevels="32"
+    >
+      
+    <FCVF
+        boxFilterWidth="11"
+        boxFilterHeight="11"
+        thrColor = ".027450"
+        thrGrad = ".007843"
+        alpha = ".11"
+        thrBorder =".011764"
+        useCostThresholds="false"
+        epsilon =".000001"
+        curvatureThresh=".008"        
+        doSubPixelInterp="true"
+		doImgPreFilter="false"
+    />
+  
+    <SMAP>
+	<Sparse
+          gridGapSize="5"
+          threshConsyCheckLR="1"
+          threshTexture="10"
+          threshMinDispRange="10"
+          dispRangeMin="0"
+          dispRangeMax="128"
+          threshMatchFac="0.95"
+          minNumConsNeighbors="5"
+          consWindowSize="2"
+          threshConsNeighborDispDiff="1"
+          includeImgCorners="false"
+          removeInessentialMatches="false"
+          doDownsampleDispMap="false"
+          downsampleFac="2"
+        />
+	<Dense
+          sigma="1.0"
+          sigmaDelta="2.0"
+          beta="0.02"
+          gamma="3.0"
+          threshTexture="0"
+          useCellStats="true"
+          histCellSize="20"
+          usePriorModeOnly="false"
+          usePostPatchSize9x9="false"
+          dispPlaneRemoval="false"
+          dispPlaneThresh="0.7"
+          doOcclusions="true"
+          doRightOcclusions="false"
+          crossCheckThresh="2"
+          doPostRemoveSmallCCs="true"
+          ccSimilarityThresh="2"
+          ccSizeThresh="200"
+          doSubpixel="true"
+          subpixelAlg="SPF"
+		  curvatureThresh="0.0"
+          doPostFillGaps="true"
+          fillDiscThresh="2"
+          fillGapSizeThresh="4"
+		  doPostSmoothMedian="true"
+          medianFilterWinSize="2" 
+		  doPostSmoothBilateral="true"
+          bilateralFilterWinSize="2"
+          processLeftOnly="true"
+        />
+    </SMAP>
+     
+  </Stereo>
+
+</Configuration>
+  
