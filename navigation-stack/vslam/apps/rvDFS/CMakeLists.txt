@@ -26,7 +26,6 @@ add_executable( ${RV_DFS} ${RV_DFS_SRC} )
 
 target_link_libraries(${RV_DFS}
     rv
-    mv3
     fastcvopt
     dl
     pthread
@@ -36,6 +35,7 @@ target_link_libraries(${RV_DFS}
     png
     tiff
     opencv_imgproc
+    OpenCL
 )
 
 target_link_libraries(${RV_DFS} ${OpenCV_LIBS})
