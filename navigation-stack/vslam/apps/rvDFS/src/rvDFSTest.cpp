@@ -7,7 +7,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 
 #include <string.h>
-
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -16,6 +15,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "dfs_factory.h"
 #include "rvDFS.h"
 #include "rvLog.h"
+#include "dfs_test_tools.h"
 #ifdef __LINUX__
 #include <getopt.h>
 #endif
@@ -32,14 +32,15 @@ bool RV_STDERR_LOGGING = true;
 
 // global variables
 int gNumRows = 720, gNumCols = 1280;
-size_t gNumLoops = 100;
+size_t gNumLoops = 1;
 int32_t gMinDisparity = 1;
-int32_t gLevelDisparity = 128;
+int32_t gLevelDisparity = 32;
 
 rvDFSMode gRunningMode = rvDFSMode::RV_DFS_GPU;
 
 string gLeftImage = "";
 string gRightImage = "";
+string gStereoConfigFile = "";
 
 void printHelp()
 {
@@ -68,7 +69,7 @@ void printHelp()
 		"\t arg denotes hight of input images\n"
 		"-H"
 		"\t Print help information.\n";
-//	printf("%s\n", gHelp);
+	//	printf("%s\n", gHelp);
 #else
 	printf(
 		"!!! On windows, rectified image asummed,\n Usage: leftImageName "
@@ -81,7 +82,7 @@ void parseCommandLine(int argc, char* argv[])
 {
 #ifdef __LINUX__
 	int c, mode, loops;
-	while ((c = getopt(argc, argv, "r:n:m:D:d:l:i:f:w:h:H")) != -1) {
+	while ((c = getopt(argc, argv, "r:n:m:D:d:l:i:f:w:h:c:H")) != -1) {
 		switch (c) {
 		case 'm':
 			gRunningMode = (rvDFSMode)atoi(optarg);
@@ -109,7 +110,10 @@ void parseCommandLine(int argc, char* argv[])
 			gNumCols = atoi(optarg);
 			printf("gNumCols %d\n", gNumCols);
 			break;
-		case 'H':
+		case 'c':
+			gStereoConfigFile = optarg;
+			break;
+        case 'H':
 			printHelp();
 			exit(1);
 		case '?':
@@ -131,6 +135,9 @@ void parseCommandLine(int argc, char* argv[])
 	}
 	if (argc >= 6) {
 		gRunningMode = (rvDFSMode)atoi(argv[5]);
+	}
+	if (argc >= 7) {
+		gStereoConfigFile = argv[6];
 	}
 #endif
 	RV_DBG("leave parse Command Line");
@@ -158,16 +165,17 @@ void readImage(const char* imageName, cv::Mat& image)
 	gNumRows = image.rows;
 }
 
-void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap)
+void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
+	const rvStereoConfiguration& stereo_parameter)
 {
-	std::cout<<"Run C-style interface."<<std::endl;
+	std::cout << "Run C-style interface." << std::endl;
 
-	if(!disparityMap)
+	if (!disparityMap)
 	{
-		std::cout<<"Input disparity_map is empty"<<std::endl;
+		std::cout << "Input disparity_map is empty" << std::endl;
 		return;
 	}
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_BOX;
+	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_GPU;
 	if (gRunningMode == 0)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_CVP;
@@ -184,39 +192,45 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_BILATERAL;
 	}
-	const std::string config_file("Configuration.Stereo.xml");
-	rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumRows, gNumCols, config_file.c_str());
+
+	rvDFSParameter dfs_parameter;
+	dfs_parameter.filterHeight = 11;
+	dfs_parameter.filterWidth = 11;
+	dfs_parameter.minDisparity = gMinDisparity;
+	dfs_parameter.numDisparityLevels = gLevelDisparity;
+	rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumCols, gNumRows, gNumCols,
+		dfs_parameter, stereo_parameter);
 	if (dfs_handle == nullptr) return;
 #ifdef PROFILING
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < gNumLoops; i++)
-    {
-        rvDFS_Execute(dfs_handle, gMinDisparity, gLevelDisparity, leftImage.ptr<uint8_t>(),
-	   rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
-    }
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-
-    RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
+	auto start = std::chrono::high_resolution_clock::now();
+	for (int i = 0; i < gNumLoops; i++)
+	{
+		rvDFS_CalculateDisparity(dfs_handle, leftImage.ptr<uint8_t>(),
+			rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
+	}
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = finish - start;
+	RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
 #else
-   	if(! rvDFS_Execute(dfs_handle, gMinDisparity, gLevelDisparity, leftImage.ptr<uint8_t>(),
-	   rightImage.ptr<uint8_t>(), disparityMap->ptr<float>()))
-		   return;
+	if (!rvDFS_CalculateDisparity(dfs_handle, leftImage.ptr<uint8_t>(),
+		rightImage.ptr<uint8_t>(), disparityMap->ptr<float>()))
+		return;
 #endif
-   	rvDFS_Deinitialize(dfs_handle);
+	rvDFS_Deinitialize(dfs_handle);
 }
 
 
-void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap)
+void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
+	const rvStereoConfiguration& stereo_parameter)
 {
-	std::cout<<"Run Cpp-style interface."<<std::endl;
+	std::cout << "Run Cpp-style interface." << std::endl;
 
-	if(!disparityMap)
+	if (!disparityMap)
 	{
-		std::cout<<"Input disparity_map is empty"<<std::endl;
+		std::cout << "Input disparity_map is empty" << std::endl;
 		return;
 	}
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_BOX;
+	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_GPU;
 	if (gRunningMode == 0)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_CVP;
@@ -236,7 +250,7 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap)
 	else if (gRunningMode == 4)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_FASTGUIDED;
-	} 
+	}
 	else if (gRunningMode == 5)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_DOWNSAMPLE;
@@ -244,26 +258,32 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap)
 
 	std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
 	if (dfs_base == nullptr) return;
-	const std::string config_file("Configuration.Stereo.xml");
-	dfs_base->initialize(gNumRows, gNumCols, config_file);
-#ifdef PROFILING
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < gNumLoops; i++)
-    {
-        dfs_base->calculateDisparity(gMinDisparity, gLevelDisparity, leftImage.ptr<uint8_t>(), rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
-        RV_DBG("i %d",i);
-    }
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
 
-    RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
+	rvDFSParameter dfs_parameter;
+	dfs_parameter.filterHeight = 11;
+	dfs_parameter.filterWidth = 11;
+	dfs_parameter.minDisparity = gMinDisparity;
+	dfs_parameter.numDisparityLevels = gLevelDisparity;
+    dfs_base->initialize(gNumCols, gNumRows, gNumCols, dfs_parameter, stereo_parameter);
+
+#ifdef PROFILING
+	auto start = std::chrono::high_resolution_clock::now();
+	for (int i = 0; i < gNumLoops; i++)
+	{
+		dfs_base->calculateDisparity(leftImage.ptr<uint8_t>(),
+			rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
+		RV_DBG("i %d", i);
+	}
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = finish - start;
+
+	RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
 #else
-	dfs_base->calculateDisparity(gMinDisparity, gLevelDisparity, leftImage.ptr<uint8_t>(),
+	dfs_base->calculateDisparity(leftImage.ptr<uint8_t>(),
 		rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
 #endif
 	return;
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -273,11 +293,21 @@ int main(int argc, char* argv[])
 	readImage(gRightImage.c_str(), rightImage);
 	cv::Mat disp;
 	disp = cv::Mat::zeros(leftImage.size(), CV_32F);
+
+	cv::Mat imgDisparity8U = cv::Mat(leftImage.rows, leftImage.cols, CV_8UC1);
+	rvStereoConfiguration stereo_parameter;
+	if (!gStereoConfigFile.empty()) {
+		//load parameter files
+		stereo_parameter =
+			dfs_test_tool::importStereoCalData(gStereoConfigFile);
+	}
+
 #ifdef DFS_CPP_STYLE_INTERFACE
-	RunTestCpp(leftImage, rightImage, &disp);
+	RunTestCpp(leftImage, rightImage, &disp, stereo_parameter);
 #else
-	RunTestC(leftImage, rightImage, &disp);
+	RunTestC(leftImage, rightImage, &disp, stereo_parameter);
 #endif
+
 	cv::Mat disparityMap(disp.size(), CV_8UC1);
 	for (int i = 0; i < disp.rows; ++i)
 	{
@@ -294,6 +324,11 @@ int main(int argc, char* argv[])
 	cv::Mat falseColorsMap;
 	cv::applyColorMap(disparityMap, falseColorsMap, cv::COLORMAP_JET);
 	cv::imwrite("disparity.bmp", falseColorsMap);
+	cv::imwrite("disparityOrig.bmp", disparityMap);
+	if (!gStereoConfigFile.empty()) {
+		std::string ply_file("point_cloud.ply");
+		dfs_test_tool::exportPLYFile(disp.cols, disp.rows, disp.cols, disp.ptr<float>(),
+			stereo_parameter, ply_file);
+	}
 	return 0;
 }
-
