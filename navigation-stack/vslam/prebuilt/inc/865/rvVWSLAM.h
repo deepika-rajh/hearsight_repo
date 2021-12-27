@@ -1,6 +1,6 @@
 ﻿/*****************************************************************************
 @copyright
-Copyright (c) 2020 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2021 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -61,15 +61,29 @@ extern "C"
       RV_TrackedObservation * _ObservationBuf = NULL;
    } rvVWSLAMStatus;
 
+
    //------------------------------------------------------------------------------
    /// @detailed
    ///     Initialize VWSLAM object.
    /// @param root
-   ///     Pointer to VWSLAM configuration.
+   ///     Pointer to VWSLAM configuration path.
+   /// @param output
+   ///     Pointer to VWSLAM output path.
    /// @return
    ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
    //------------------------------------------------------------------------------
-   RV_API rvVWSLAM *rvVWSLAM_Initialize(const char* root, const char * output, const rvCameraParams * cameraConfig);
+   RV_API rvVWSLAM* rvVWSLAM_Initialize(const char* root, const char* output, const rvCameraParams* cameraConfig);
+
+
+   //------------------------------------------------------------------------------
+  /// @detailed
+  ///     Reload an existing map and initialize VWSLAM object.
+  /// @param root
+  ///     Pointer to VWSLAM configuration.
+  /// @return
+  ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
+  //------------------------------------------------------------------------------
+   RV_API rvVWSLAM* rvVWSLAM_Reload(const char* root, const char* output, const rvCameraParams* cameraConfig);
 
 
    //------------------------------------------------------------------------------
@@ -115,6 +129,19 @@ extern "C"
    ///     Pointer to VWSLAM object.
    //------------------------------------------------------------------------------
    RV_API void rvVWSLAM_Reset(rvVWSLAM *pObj);
+
+
+   //------------------------------------------------------------------------------
+/// @detailed
+///     Freeze VWSLAM maps.
+/// @param pObj
+///     Pointer to VWSLAM object.
+/// @param vslamFlag
+///     Whether to freeze vslam map.
+/// @param vmFlag
+///     Whether to freeze vm map.
+//------------------------------------------------------------------------------
+   RV_API void rvVWSLAM_Freeze(rvVWSLAM* pObj, const bool vslamFlag, const bool vmFlag);
 
 
    //------------------------------------------------------------------------------
@@ -175,8 +202,18 @@ extern "C"
    /// @return
    ///     VWSLAM output pose
    //------------------------------------------------------------------------------
-   RV_API rvVSLAMPose rvVWSLAM_GetVslamOutputPose(rvVWSLAM *pObj);
+   RV_API rvVSLAMPose rvVWSLAM_GetBaselinkPose(rvVWSLAM *pObj);
 
+
+   //------------------------------------------------------------------------------
+   /// @detailed
+   ///     Get output pose from VWSLAM object.
+   /// @param pObj
+   ///     Pointer to VWSLAM object.
+   /// @return
+   ///     VWSLAM output pose
+   //------------------------------------------------------------------------------
+   RV_API rvVSLAMPose rvVWSLAM_PredictBaselinkPose( rvVWSLAM *pObj, int64_t timstamp );
 
    //------------------------------------------------------------------------------
 /// @detailed
@@ -261,13 +298,28 @@ extern "C"
    //------------------------------------------------------------------------------
    bool RV_API rvVWSLAM_SaveMap( rvVWSLAM *pObj, const char* mapFolder, const char* mapName );
 
+
    //------------------------------------------------------------------------------
    /// @detailed
    ///     get grid image.
    /// @param pObj
-   ///     Pointer to iamge data, size of image.
+   ///     Pointer to VWSLAM object.
+   /// @param data
+   ///     Address of pointer for iamge data.
+   /// @param w
+   ///     Address for image width.
+   /// @param h
+   ///     Address for image height.
+   /// @param x
+   ///     Address for origin X.
+   /// @param y
+   ///     Address for origin Y.
+   /// @param r
+   ///     Address for map resolution. Unit is meter
+   /// @return
+   ///     Timestamp of the last update for the grid map.
    //------------------------------------------------------------------------------
-   RV_API void rvVWSLAM_getGridImage(rvVWSLAM *pObj, unsigned char ** data, int* w, int* h);
+   RV_API long long rvVWSLAM_getGridImage(rvVWSLAM *pObj, unsigned char ** data, int* w, int* h, int* x, int* y, float* r );
 
 
    //------------------------------------------------------------------------------
@@ -279,6 +331,17 @@ extern "C"
    RV_API void rvVWSLAM_Deinitialize(rvVWSLAM *pObj);
 
 
+   //------------------------------------------------------------------------------
+   /// @detailed
+   ///     Get map to odom transformation
+   /// @param pObj
+   ///     Pointer to VWSLAM object.
+   /// @param pose
+   ///     Pose transformation struct
+   /// @return
+   ///     true if success or false if failure
+   //------------------------------------------------------------------------------
+   RV_API bool rvVWSLAM_getMapOdomTransform( rvVWSLAM * pObj, rvPose6DYPRT & pose );
 
 #ifdef __cplusplus
 }

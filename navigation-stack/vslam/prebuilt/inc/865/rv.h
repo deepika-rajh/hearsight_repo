@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2021 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -31,6 +31,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 #include <stddef.h>
 #include <stdbool.h>
+#include <vector>
 
 #ifdef __GNUC__
 #ifdef BUILDING_SO
@@ -81,6 +82,55 @@ extern "C"
     * return RV SDK version string
     * ********************************/
    RV_API const char* rvVersion( void );
+
+   struct PointAE {
+       double x;
+       double y;
+       double z;
+   };
+
+
+   struct AEPOSE {
+       PointAE robotPos;
+       double rx, ry, rz, rw;
+   };
+
+
+   struct Frontier {
+       uint32_t size;
+       double min_distance;
+       double cost;
+       PointAE initial;
+       PointAE centroid;
+       PointAE middle;
+       std::vector<PointAE> points;
+   };
+
+
+   struct MapInfo {
+       unsigned char* map_;
+       unsigned int width_;
+       unsigned int height_;
+       float mapResolution_;
+       float mapOriginX_;
+       float mapOriginY_;
+   };
+
+
+   enum STATUS { PURSUEGOAL, BACKTOORIGIN, ROTATE, AGAIN, HOLDON };
+
+
+   /************************************************************************//**
+   @brief
+      Preference of tradeoffs (e.g., speed vs quality)
+   ****************************************************************************/
+  /* typedef enum
+   {
+      MV_MODE_SPEED = 0,
+      MV_MODE_QUALITY = 1,
+      MV_MODE_GPU = 2,
+      MV_MODE_GPU_SIM = 3
+   } MV_MODE;*/
 
    /************************************************************************//**
    @detailed
@@ -160,6 +210,17 @@ extern "C"
       int32_t   distortionModel;
    } rvCameraConfiguration;
 
+
+/************************************************************************//**
+   @brief
+      Configuration of stereo config.
+   ****************************************************************************/
+   typedef struct
+   {
+      float32_t translation[3], rotation[3];  // Relative between cameras
+      rvCameraConfiguration camera[2];        // Left/right camera calibrations
+      float32_t correctionFactors[4];         // Distance correction
+   } rvStereoConfiguration;
    /************************************************************************//**
    @detailed
       6-DOF pose information in Rotation-Translation matrix form.
@@ -217,7 +278,41 @@ extern "C"
    ****************************************************************************/
    //RV_API void rvMultiplyPose6DRT( const rvPose6DRT* A, const rvPose6DRT* B, rvPose6DRT* out );
 
-      //------------------------------------------------------------------------------
+   /************************************************************************//**
+   @detailed
+      Position in 2D world space.
+   ****************************************************************************/
+   typedef struct
+   {
+       float32_t x; //unit: meter
+       float32_t y; //unit: meter
+   } rvPosition2D;
+
+
+   /************************************************************************//**
+   @detailed
+      Position in 2D image coordinate.
+   ****************************************************************************/
+   typedef struct
+   {
+       int x; //unit: pixel
+       int y; //unit: pixel
+   } rvPixel2D;
+
+
+
+   //------------------------------------------------------------------------------
+   /// @detailed
+   ///     Path planner configurable parameters.
+   //------------------------------------------------------------------------------
+   //------------------------------------------------------------------------------
+   typedef struct
+   {
+       float resolution; //map resolution       
+   } rvPathPlanningParameters;
+
+
+   //------------------------------------------------------------------------------
    /// @detailed
    ///     Tracking state quality for VSLAM.
    //------------------------------------------------------------------------------
@@ -231,6 +326,18 @@ extern "C"
       RV_VSLAM_TRACKING_STATE_BAD = 3,
       RV_VSLAM_TRACKING_STATE_APPROX = 4,
    } RV_VSLAM_TRACKING_STATE;
+
+
+   //------------------------------------------------------------------------------
+   /// @detailed
+   ///     Grip map state for PLANNER.
+   //------------------------------------------------------------------------------
+   typedef enum
+   {
+       RV_PLANNER_FRIDMAP_FREE = 0,
+       RV_PLANNER_FRIDMAP_UNKNOWN = 255,
+       RV_PLANNER_FRIDMAP_OCCUPIED = 254
+   } RV_PLANNER_GRIDMAP_STATE;
 
 
 #ifdef __cplusplus
