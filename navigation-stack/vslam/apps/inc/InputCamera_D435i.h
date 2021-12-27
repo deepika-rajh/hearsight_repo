@@ -15,7 +15,8 @@ class InputCamera_D435i
 {
 public:
 
-   typedef void( *CameraCallback )(const int64_t, const unsigned char *, const unsigned short *);
+   //typedef void( *CameraCallback )(const int64_t, const unsigned char *, const unsigned short *);
+   typedef std::function<void(const int64_t, const unsigned char *, const unsigned short *)> CameraCallback;
 
    InputCamera_D435i();
    ~InputCamera_D435i();

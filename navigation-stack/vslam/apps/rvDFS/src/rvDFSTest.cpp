@@ -31,7 +31,7 @@ int RV_LOG_LEVEL = 2;
 bool RV_STDERR_LOGGING = true;
 
 // global variables
-int gNumRows = 720, gNumCols = 1280;
+int gNumRows = 480, gNumCols = 640;
 size_t gNumLoops = 1;
 int32_t gMinDisparity = 1;
 int32_t gLevelDisparity = 32;
@@ -42,12 +42,14 @@ string gLeftImage = "";
 string gRightImage = "";
 string gStereoConfigFile = "";
 
+bool gDoRectification = true;
+
 void printHelp()
 {
 #ifdef __LINUX__
 	static const char* gHelp =
 		"USAGE: rv_dfs_test [-m arg] [-l arg] [-d arg] [-D "
-		"arg] [-t arg] -[r arg] -[i arg]\n"
+		"arg] [-t arg] -[r arg] -[i arg] -[c arg]\n"
 		"-m"
 		"\t arg denotes running mode 0-CVP, 1-SW, 2-GPU, 3-Guided\n"
 		"-t"
@@ -67,6 +69,8 @@ void printHelp()
 		"\t arg denotes width of input images\n"
 		"-h"
 		"\t arg denotes hight of input images\n"
+		"-c"
+		"\t arg denotes calibration parameter file\n"
 		"-H"
 		"\t Print help information.\n";
 	//	printf("%s\n", gHelp);
@@ -104,13 +108,11 @@ void parseCommandLine(int argc, char* argv[])
 			break;
 		case 'h':
 			gNumRows = atoi(optarg);
-			printf("gNumRows %d\n", gNumRows);
 			break;
 		case 'w':
 			gNumCols = atoi(optarg);
-			printf("gNumCols %d\n", gNumCols);
 			break;
-		case 'c':
+        case 'c':
 			gStereoConfigFile = optarg;
 			break;
         case 'H':
@@ -129,17 +131,22 @@ void parseCommandLine(int argc, char* argv[])
 #else
 	gLeftImage = argv[1];
 	gRightImage = argv[2];
+	if (argc >= 4) {
+		gRunningMode = (rvDFSMode)atoi(argv[3]);
+	}
 	if (argc >= 5) {
-		gNumRows = stoi(argv[4]);
-		gNumCols = stoi(argv[3]);
+		gStereoConfigFile = argv[4];
 	}
 	if (argc >= 6) {
-		gRunningMode = (rvDFSMode)atoi(argv[5]);
+		gLevelDisparity = stoi(argv[5]);
 	}
 	if (argc >= 7) {
-		gStereoConfigFile = argv[6];
+		gDoRectification = stoi(argv[6]);
 	}
 #endif
+	if (gStereoConfigFile.empty())
+		gDoRectification = false;
+
 	RV_DBG("leave parse Command Line");
 }
 
@@ -160,13 +167,25 @@ void readImage(const char* imageName, cv::Mat& image)
 		image = cv::imread(imageName);
 	}
 	if (image.channels() == 3)
-		cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+	{
+        if (gRunningMode == 5)
+        {
+            cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+            RV_DBG("convert to RGB");
+        }
+        else
+        {
+            cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+            RV_DBG("convert to gray");
+        }
+    }
 	gNumCols = image.cols;
 	gNumRows = image.rows;
+	RV_DBG("image %s size is %d x %d", imageName, gNumCols, gNumRows);
 }
 
 void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
-	const rvStereoConfiguration& stereo_parameter)
+	const rvStereoConfiguration& stereo_parameter, rvStereoConfiguration* rectified_stereo_parameter)
 {
 	std::cout << "Run C-style interface." << std::endl;
 
@@ -175,7 +194,15 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 		std::cout << "Input disparity_map is empty" << std::endl;
 		return;
 	}
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_GPU;
+    rvDFSParameter dfs_parameter;
+    dfs_parameter.filterHeight = 11;
+    dfs_parameter.filterWidth = 11;
+    dfs_parameter.minDisparity = gMinDisparity;
+    dfs_parameter.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.doRectification = gDoRectification;
+    dfs_parameter.doGpuRect = false;
+
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_GPU;
 	if (gRunningMode == 0)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_CVP;
@@ -187,20 +214,29 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	else if (gRunningMode == 2)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_GPU;
+		dfs_parameter.doGpuRect = true;
 	}
 	else if (gRunningMode == 3)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_BILATERAL;
 	}
+    else if (gRunningMode == 4)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_FASTGUIDED;
+    }
+    else if (gRunningMode == 5)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_GPU_GUIDED;
+    }
+    else if (gRunningMode == 6)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_DOWNSAMPLE;
+    }
 
-	rvDFSParameter dfs_parameter;
-	dfs_parameter.filterHeight = 11;
-	dfs_parameter.filterWidth = 11;
-	dfs_parameter.minDisparity = gMinDisparity;
-	dfs_parameter.numDisparityLevels = gLevelDisparity;
 	rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumCols, gNumRows, gNumCols,
 		dfs_parameter, stereo_parameter);
 	if (dfs_handle == nullptr) return;
+	*rectified_stereo_parameter = rvDFS_GetRectifiedCameraParameter(dfs_handle);
 #ifdef PROFILING
 	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < gNumLoops; i++)
@@ -221,8 +257,12 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 
 
 void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
-	const rvStereoConfiguration& stereo_parameter)
+	const rvStereoConfiguration& stereo_parameter, rvStereoConfiguration* rectified_stereo_parameter)
 {
+	if (rectified_stereo_parameter == nullptr) {
+		std::cout << "rectified_stereo_parameter is null" << std::endl;
+		return;
+	}
 	std::cout << "Run Cpp-style interface." << std::endl;
 
 	if (!disparityMap)
@@ -230,6 +270,15 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 		std::cout << "Input disparity_map is empty" << std::endl;
 		return;
 	}
+
+    rvDFSParameter dfs_parameter;
+    dfs_parameter.filterHeight = 15;
+    dfs_parameter.filterWidth = 15;
+    dfs_parameter.minDisparity = gMinDisparity;
+    dfs_parameter.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.doRectification = gDoRectification;
+    dfs_parameter.doGpuRect = false;
+
 	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_GPU;
 	if (gRunningMode == 0)
 	{
@@ -242,6 +291,7 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	else if (gRunningMode == 2)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_GPU;
+		dfs_parameter.doGpuRect = true;
 	}
 	else if (gRunningMode == 3)
 	{
@@ -251,7 +301,12 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	{
 		dfs_mode = rvDFSMode::RV_DFS_FASTGUIDED;
 	}
-	else if (gRunningMode == 5)
+    else if (gRunningMode == 5)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_GPU_GUIDED;
+//        dfs_parameter.doGpuRect = true;
+    }
+    else if (gRunningMode == 6)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_DOWNSAMPLE;
 	}
@@ -259,12 +314,9 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
 	if (dfs_base == nullptr) return;
 
-	rvDFSParameter dfs_parameter;
-	dfs_parameter.filterHeight = 11;
-	dfs_parameter.filterWidth = 11;
-	dfs_parameter.minDisparity = gMinDisparity;
-	dfs_parameter.numDisparityLevels = gLevelDisparity;
-    dfs_base->initialize(gNumCols, gNumRows, gNumCols, dfs_parameter, stereo_parameter);
+	dfs_base->initialize(gNumCols, gNumRows, gNumCols, dfs_parameter,
+		stereo_parameter);
+	*rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
 
 #ifdef PROFILING
 	auto start = std::chrono::high_resolution_clock::now();
@@ -282,6 +334,28 @@ void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	dfs_base->calculateDisparity(leftImage.ptr<uint8_t>(),
 		rightImage.ptr<uint8_t>(), disparityMap->ptr<float>());
 #endif
+//    start = std::chrono::high_resolution_clock::now();
+//    for (int i = 0; i < gNumLoops; i++)
+//    {
+//        cv::Mat dispFinalMatF(gNumRows, gNumCols, CV_32FC1, disparityMap->ptr<float>());
+//        cv::Mat dispFinalMat;
+//        dispFinalMatF.convertTo(dispFinalMat, CV_16SC1);
+//        cv::Mat tempMat(gNumRows,gNumCols,CV_16SC1);
+//        cv::filterSpeckles( dispFinalMat, 0, 200, 2, tempMat );
+//        dispFinalMat.convertTo(dispFinalMatF,CV_32FC1);
+//    }
+//    finish = std::chrono::high_resolution_clock::now();
+//    elapsed = finish - start;
+//    RV_ERR("filter speckle Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
+
+    if(gDoRectification)
+    {
+        cv::Mat rectLImg(gNumRows, gNumCols, CV_8UC1);
+        cv::Mat rectRImg(gNumRows, gNumCols, CV_8UC1);
+        dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
+        cv::imwrite("leftRectifiedImage.bmp", rectLImg);
+        cv::imwrite("rightRectifiedImage.bmp", rectRImg);
+    }
 	return;
 }
 
@@ -295,6 +369,7 @@ int main(int argc, char* argv[])
 	disp = cv::Mat::zeros(leftImage.size(), CV_32F);
 
 	cv::Mat imgDisparity8U = cv::Mat(leftImage.rows, leftImage.cols, CV_8UC1);
+
 	rvStereoConfiguration stereo_parameter;
 	if (!gStereoConfigFile.empty()) {
 		//load parameter files
@@ -302,12 +377,15 @@ int main(int argc, char* argv[])
 			dfs_test_tool::importStereoCalData(gStereoConfigFile);
 	}
 
+	rvStereoConfiguration rectified_stereo_parameter;
 #ifdef DFS_CPP_STYLE_INTERFACE
-	RunTestCpp(leftImage, rightImage, &disp, stereo_parameter);
+	RunTestCpp(leftImage, rightImage, &disp, stereo_parameter, &rectified_stereo_parameter);
 #else
-	RunTestC(leftImage, rightImage, &disp, stereo_parameter);
+	RunTestC(leftImage, rightImage, &disp, stereo_parameter, &rectified_stereo_parameter);
 #endif
 
+
+//    cv::imwrite("disparityOrig.pfm", disp);
 	cv::Mat disparityMap(disp.size(), CV_8UC1);
 	for (int i = 0; i < disp.rows; ++i)
 	{
@@ -316,6 +394,8 @@ int main(int argc, char* argv[])
 			disparityMap.at<uint8_t>(i, j) = static_cast<uint8_t>(disp.at<float>(i, j));
 		}
 	}
+//	cv::imwrite("disparityOrig.bmp", disparityMap);
+
 	double min;
 	double max;
 	cv::minMaxIdx(disparityMap, &min, &max);
@@ -324,11 +404,10 @@ int main(int argc, char* argv[])
 	cv::Mat falseColorsMap;
 	cv::applyColorMap(disparityMap, falseColorsMap, cv::COLORMAP_JET);
 	cv::imwrite("disparity.bmp", falseColorsMap);
-	cv::imwrite("disparityOrig.bmp", disparityMap);
 	if (!gStereoConfigFile.empty()) {
 		std::string ply_file("point_cloud.ply");
 		dfs_test_tool::exportPLYFile(disp.cols, disp.rows, disp.cols, disp.ptr<float>(),
-			stereo_parameter, ply_file);
+			rectified_stereo_parameter, ply_file);
 	}
 	return 0;
 }

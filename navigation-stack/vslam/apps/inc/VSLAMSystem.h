@@ -23,19 +23,18 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "Visualization.h"
 
 
-#ifdef ARM_BASED
+//#ifdef ARM_BASED
 #ifdef ENABLE_DEPTH
 #include "InputCamera_D435i.h"
-#else
-#ifdef ENABLE_KINECT
-#include "InputCamera_Kinect2.h"
-#else
+#elif defined (ARM_BASED)
 #include "InputCamera_ov9282.h"
-#endif
-#endif
+//#endif
+#elif defined (ENABLE_KINECT)
+#include "InputCamera_Kinect2.h"
 #else
 #include "VirtualSensorDevice.h"
 #endif
+//#endif
 
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
@@ -117,7 +116,8 @@ public:
 
     void getRobotPose(rvVSLAMPose & pose )
     {
-       pose = rvVWSLAM_GetVslamOutputPose(vslamPtr);
+
+       pose = rvVWSLAM_GetBaselinkPose(vslamPtr);
     }
 
     //float getWallAngle()
@@ -149,19 +149,18 @@ private:
     static std::string rootPath;
     static std::string outputPath;
 
-#ifdef ARM_BASED
+//#ifdef ARM_BASED
 #ifdef ENABLE_DEPTH
     static std::shared_ptr<InputCamera_D435i> inputCamera;
-#else
-#ifdef ENABLE_KINECT
-    static std::shared_ptr<InputCamera_Kinect2> inputCamera;
-#else
+#elif defined (ARM_BASED)
     static std::shared_ptr<InputCamera_OV9282> inputCamera;
-#endif
-#endif
+//#endif
+#elif defined (ENABLE_KINECT)
+    static std::shared_ptr<InputCamera_Kinect2> inputCamera;
 #else
     static std::shared_ptr<camera::VirtualSensorDevice> inputCamera;
 #endif
+//#endif
     
     typedef enum
     {

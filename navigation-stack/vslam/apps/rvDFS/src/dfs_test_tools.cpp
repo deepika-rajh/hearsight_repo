@@ -14,12 +14,14 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <iomanip>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/calib3d.hpp>
 
 
 namespace dfs_test_tool {
 	typedef std::vector<std::vector<double>> PointCloudType;
 
-	std::vector<float> transferDisparyToDepth(int width, int height, int stride, const float* disparity_map, double factor, double doffs)
+	std::vector<float> transferDisparyToDepth(int width, int height, int stride, 
+		const float* disparity_map, double factor, double doffs)
 	{
 		if (nullptr == disparity_map)
 		{
@@ -36,11 +38,44 @@ namespace dfs_test_tool {
 					depth_map[i++] = 0.0;
 					continue;
 				}
+
 				depth_map[i++] = factor / (disparity_map[h * stride + w] + doffs);
 			}
 		}
 		return depth_map;
 	}
+
+
+	cv::Mat transferDisparyToDepthU16(int width, int height, int stride, const float* disparity_map, double factor, double doffs)
+	{
+		if (nullptr == disparity_map)
+		{
+			std::cout << "Input disparity_map is empty." << std::endl;
+			return cv::Mat();
+		}
+
+		const int rows = height;
+		const int cols = width;
+
+		cv::Mat depth_map(rows, cols, CV_16U);
+
+		for (int h = 0; h < height; ++h)
+		{
+			for (int w = 0; w < width; ++w)
+			{
+				const int r = h;
+				const int c = w;
+				if (disparity_map[h * stride + w] <= 1.0e-8) {
+					depth_map.at<uint16_t>(r, c) = 0;
+					continue;
+				}
+				double d = factor / (disparity_map[h * stride + w] + doffs);
+				depth_map.at<uint16_t>(r, c) = static_cast<uint16_t>(d);
+			}
+		}
+		return depth_map;
+	}
+
 
 	void writePLYPointcloud(std::ostream& o_st, const PointCloudType& pointcloud)
 	{
@@ -75,15 +110,21 @@ namespace dfs_test_tool {
 		const double cx = camera_config.principalPoint[0];
 		const double cy = camera_config.principalPoint[1];
 		double T = stereo_config.translation[0];
+
+		const double factor = focal_len_u * T;
+		cv::Mat depth_mat_u16 = transferDisparyToDepthU16(width,
+			height, stride, disparity_map, factor, doffs);
+		cv::imwrite("depthMapU16.png", depth_mat_u16);
+
 		std::vector<float> depth_map = transferDisparyToDepth(width,
-			height, stride, disparity_map, focal_len_u * T, doffs);
+			height, stride, disparity_map, factor, doffs);
 		PointCloudType point_cloud;
 		for (int h = 0; h < height; ++h)
 		{
 			for (int w = 0; w < width; ++w)
 			{
 				double d = depth_map[h * width + w];
-				if (d <= 1.0e-8) continue;
+				if (std::abs(d) <= 1.0e-8) continue;
 				double X = (w - cx) * d / focal_len_u;
 				double Y = (h - cy) * d / focal_len_v;
 				point_cloud.push_back(std::vector<double>({ X, Y, d }));
@@ -98,7 +139,7 @@ namespace dfs_test_tool {
 		rvStereoConfiguration dfs_parameter;
 		//load parameter files
 		cv::FileStorage fs(file, cv::FileStorage::READ);
-		if (!fs.isOpened()) return dfs_parameter;
+		if (!fs.isOpened()) return rvStereoConfiguration();
 
 		cv::Mat camera_mat_left;
 		fs["Camera_Matrix1"] >> camera_mat_left;
@@ -136,6 +177,7 @@ namespace dfs_test_tool {
 		fs["R"] >> R;
 		cv::Mat T;
 		fs["T"] >> T;
+
 		cv::Vec3d rot_rodrigues;
 		cv::Rodrigues(R, rot_rodrigues);
 		for (int i = 0; i < 3; ++i)
@@ -143,6 +185,7 @@ namespace dfs_test_tool {
 			dfs_parameter.translation[i] = T.at<double>(i, 0);
 			dfs_parameter.rotation[i] = rot_rodrigues[i];
 		}
+
 		return dfs_parameter;
 	}
 

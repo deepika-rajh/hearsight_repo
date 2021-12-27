@@ -351,13 +351,13 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    }
 #endif
 
-   robotPose = rvVWSLAM_GetVslamOutputPose(vslamPtr);
+   robotPose = rvVWSLAM_GetBaselinkPose(vslamPtr);
    int64_t current_time = (int64_t)getRealTime();
 
    if( robotPose.timestampNs - lastPoseTimeStamp > 0)
    {
       lastPoseTimeStamp = robotPose.timestampNs;
-      printf("pose is updated. cur_time %ld, last %ld, the latency is %ld ms\n", current_time, robotPose.timestampNs, (current_time - robotPose.timestampNs)/1000000);
+      printf("pose is updated. cur_time %lld, last %lld, the latency is %lld ms\n", current_time, robotPose.timestampNs, (current_time - robotPose.timestampNs)/1000000);
       #ifdef ROS_BASED
       pub_robot_pose(robotPose);
       #endif
@@ -397,7 +397,9 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       delete status._ObservationBuf;
 #endif
 
-   rvVWSLAM_getGridImage( vslamPtr, viz->getVisData(), viz->getVisWidthAddr(), viz->getVisHeightAddr() );
+   int originX, originY;
+   float resolution;
+   long long tt = rvVWSLAM_getGridImage(vslamPtr, viz->getVisData(), viz->getVisWidthAddr(), viz->getVisHeightAddr(), &originX, &originY, &resolution);
    viz->ShowGridMap();
 }
 

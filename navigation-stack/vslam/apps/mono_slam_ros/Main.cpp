@@ -24,6 +24,8 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <sensor_msgs/msg/imu.hpp>
 
 bool debugLevel = 0;
+int RV_LOG_LEVEL = 1;
+bool RV_STDERR_LOGGING = true;
 static char *helpMsg =
       "mv_vwslam \n"
       "Usage: mv_vwslam [-options]\n"
