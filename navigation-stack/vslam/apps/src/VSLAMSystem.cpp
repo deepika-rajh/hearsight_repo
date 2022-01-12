@@ -160,6 +160,7 @@ VSLAMSystem::~VSLAMSystem()
 
 void VSLAMSystem::deinit()
 {
+   rvVWSLAM_SaveMap( vslamPtr, NULL, NULL );
    rvVWSLAM_Deinitialize( vslamPtr );
 
    inputCamera = nullptr;

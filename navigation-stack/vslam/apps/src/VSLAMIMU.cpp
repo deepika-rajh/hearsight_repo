@@ -110,7 +110,18 @@ void VSLAMIMU::imuProc()
     float accVal[3], gyrVal[3];
     float delta = 0.f;
     int64_t lastTimeStamp = 0;
-
+    const char head0[] ="<?xml version='1.0' encoding='UTF-8'?>";
+    const char head1[] ="<Sequence>";
+    const char head2[] ="  <Dataset>";	
+    const char tail0[] ="  </Dataset>";
+    const char tail1[] ="</Sequence>";
+    FILE * aFp = fopen("/data/vwslam/accelerometer.xml","wt");
+    FILE * gFp = fopen("/data/vwslam/gyroscope.xml","wt");
+    if (aFp)
+    {
+        fprintf(aFp, "%s\n%s\n%s\n", head0, head1, head2);
+	fprintf(gFp, "%s\n%s\n%s\n", head0, head1, head2);
+    }
     while(threadRunning)
     {
         _imu_client.GetImuData(imu_data, 64, &pack_num);
@@ -118,7 +129,13 @@ void VSLAMIMU::imuProc()
         for( int j = 0; j < pack_num; ++j )
         {
             int64_t curTimeStampNs = imu_data[j].time_acc + clockOffset;
-
+	    if (aFp)
+	    {
+                fprintf(aFp, "    <Data x='%.6f' y='%.6f' z='%.6f' timestamp='%ld'/>\n", 
+			        imu_data[j].acceloration_x, imu_data[j].acceloration_y, imu_data[j].acceloration_z, curTimeStampNs);
+		fprintf(gFp, "    <Data x='%.6f' y='%.6f' z='%.6f' timestamp='%ld'/>\n", 
+			        imu_data[j].angular_velocity_x, imu_data[j].angular_velocity_y, imu_data[j].angular_velocity_z, curTimeStampNs);
+            }
             if( lastTimeStamp != 0 )
             {
                 delta = (curTimeStampNs - lastTimeStamp)*1e-6f;
@@ -147,6 +164,13 @@ void VSLAMIMU::imuProc()
 
         VSLAM_SLEEP( 20 );
     }
+	if (aFp)
+	{
+            fprintf(aFp, "%s\n%s\n", tail0, tail1);
+	    fclose(aFp);
+	    fprintf(gFp, "%s\n%s\n", tail0, tail1);
+	    fclose(gFp);
+	}
 }
 
 VSLAMIMU::VSLAMIMU(int32_t sign[3])
