@@ -121,6 +121,7 @@ int main( int argc, char** argv )
 
    //stop VSLAM
    sys->Quit();
+   sys->saveMap();
    sys->deinit();
    sys->state_sub = nullptr;
    sys = nullptr;

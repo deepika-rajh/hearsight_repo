@@ -99,6 +99,7 @@ int main( int argc, char** argv )
    sys->Spin();
    //stop VSLAM
    sys->Quit();
+   sys->saveMap();
    sys->deinit();
    sys = nullptr;
    printf("vslam application exits\n");

@@ -120,12 +120,7 @@ public:
        pose = rvVWSLAM_GetBaselinkPose(vslamPtr);
     }
 
-    //float getWallAngle()
-    //{
-    //   return rvVWSLAM_GetWallAngle();
-    //}
-
-    //static std::shared_ptr<rvVWSLAM> vslamPtr;
+    bool saveMap();
 
     static rvVWSLAM* vslamPtr;
 #ifdef ROS_BASED

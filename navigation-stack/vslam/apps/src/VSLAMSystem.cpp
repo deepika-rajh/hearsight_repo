@@ -154,13 +154,11 @@ void VSLAMSystem::state_callback(const std_msgs::msg::String::SharedPtr msg) con
 /**********************   C APIs end   ************************************/
 
 VSLAMSystem::~VSLAMSystem()
-{
-   deinit();
+{  
 }
 
 void VSLAMSystem::deinit()
 {
-   rvVWSLAM_SaveMap( vslamPtr, NULL, NULL );
    rvVWSLAM_Deinitialize( vslamPtr );
 
    inputCamera = nullptr;
@@ -170,6 +168,11 @@ void VSLAMSystem::deinit()
    imu = nullptr;
 #endif
    vslamPtr = nullptr;
+}
+
+bool VSLAMSystem::saveMap()
+{
+   return rvVWSLAM_SaveMap( vslamPtr, NULL, NULL );
 }
 
 VSLAMSystem::VSLAMSystem()
