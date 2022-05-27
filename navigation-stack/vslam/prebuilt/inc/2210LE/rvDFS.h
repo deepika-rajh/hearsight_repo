@@ -38,17 +38,16 @@ extern "C"
 
 	typedef enum
 	{
-		RV_DFS_CVP = 0,         //CVP hardware mode
-		RV_DFS_BOX,             //Software solution, Box filter
-		RV_DFS_GPU,             //OpenCL solution, box filter
-		RV_DFS_BILATERAL,       //Software solution, bilateral filter
-		RV_DFS_FASTGUIDED,      //Fast guided filter
-		RV_DFS_GPU_GUIDED,      //OpenCL solution, guided filter
-		RV_DFS_DOWNSAMPLE       //Down sample the input images and up sample the output
+		RV_DFS_CVP = 0,         	//CVP hardware mode
+		RV_DFS_SPEED_CPU,           //CPU solution, speed mode
+		RV_DFS_SPEED_GPU,          	//OpenCL solution, speed mode, fastest mode
+		RV_DFS_ACCURACY_CPU,       	//CPU solution, accuracy mode
+		RV_DFS_COVERAGE_CPU,      	//CPU solution, coverage mode
+		RV_DFS_COVERAGE_GPU,      	//OpenCL solution, coverage mode
 	}rvDFSMode;
 
 
-	typedef struct
+	typedef struct _rvDFSParameter
 	{
 		int minDisparity;                       //Minimum disparity level to search
 		int numDisparityLevels;                 //Number of disparity levels
@@ -58,6 +57,8 @@ extern "C"
 		bool doGpuRect;                         //Indicate if rectification on GPU
 	}rvDFSParameter;
 
+
+    typedef std::vector<std::vector<float>> PointCloudType;
 
 	//------------------------------------------------------------------------------
 	/// @detailed
@@ -102,15 +103,45 @@ extern "C"
         ///   Left image pointer
         /// @param imgR
         ///   Right image pointer
-        /// @param disparity_map
+        /// @param disparityMap
         ///   Disparity map pointer for output
         /// @return
         ///   Returns True if success or False if failure
 	//------------------------------------------------------------------------------
-	bool RV_API rvDFS_CalculateDisparity(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparity_map);
+	bool RV_API rvDFS_CalculateDisparity(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparityMap);
+	
+
+	//------------------------------------------------------------------------------
+	/// @detailed
+	///     Run rvDFS and get disparity map
+        /// @param pHandle
+        ///   Handle of rvDFS
+        /// @param imgL
+        ///   Left image pointer
+        /// @param imgR
+        ///   Right image pointer
+	/// @param depthMap
+	///   Depth map pointer for output
+        /// @return
+        ///   Returns True if success or False if failure
+	//------------------------------------------------------------------------------
+	bool RV_API rvDFS_CalculateDepth(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* depthMap);
 
 
         //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Get rectified left and right images
+        /// @param pHandle
+        ///   Handle of rvDFS
+        /// @param depthMap
+        ///   Depth map pointer
+        /// @param pointCloud
+        ///   Point cloud pointer for output
+        //------------------------------------------------------------------------------
+        bool RV_API rvDFS_Depth2PointCloud(rvDFS* pHandle, float* depthMap, PointCloudType* pointCloud);
+	
+	
+	//------------------------------------------------------------------------------
         /// @detailed
         ///     Get rectified left and right images
         /// @param pHandle

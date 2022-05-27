@@ -13,11 +13,10 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <string>
 
 #include <rv.h>
+#include <rvDFS.h>
 namespace dfs_test_tool {
-	void exportPLYFile(int width, int height, int stride,
-		const float* disparity_map, const rvStereoConfiguration& stereo_config,
-		const std::string& ply_file_path);
-
+	void writePLYPointcloud(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height);
+	void writePLYPointcloudColor(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height);
 	rvStereoConfiguration importStereoCalData(const std::string& file);
 }
 #endif
