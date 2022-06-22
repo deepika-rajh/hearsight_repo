@@ -5,7 +5,6 @@ All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 
-
 #ifndef RV_DFS_FACTORY_H
 #define RV_DFS_FACTORY_H
 

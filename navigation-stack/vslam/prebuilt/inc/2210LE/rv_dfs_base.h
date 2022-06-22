@@ -60,8 +60,10 @@ namespace rv_dfs
         ///   Right image pointer
         /// @param disparities
         ///   Disparity map pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
         //------------------------------------------------------------------------------
-	    virtual void calculateDisparity(uint8_t* imgL, uint8_t* imgR, float* disparities) = 0;
+	    virtual void calculateDisparity(uint8_t* imgL, uint8_t* imgR, float* disparities, rvDFSDisparity* dfs_disparity=nullptr) = 0;
 
         //------------------------------------------------------------------------------
         /// @detailed
@@ -72,8 +74,38 @@ namespace rv_dfs
         ///   Right image pointer
         /// @param depth
         ///   Depth map pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
         //------------------------------------------------------------------------------
-	    virtual bool calculateDepth(uint8_t* imgL, uint8_t* imgR, float* depth) = 0;
+	    virtual bool calculateDepth(uint8_t* imgL, uint8_t* imgR, float* depth, rvDFSDisparity* dfs_disparity=nullptr) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Run rvDFS and get point cloud
+        /// @param imgL
+        ///   Left image pointer
+        /// @param imgR
+        ///   Right image pointer
+        /// @param pointCloud
+        ///   point cloud pointer to pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
+        //------------------------------------------------------------------------------
+	    virtual bool calculatePointCloud(uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud, rvDFSDisparity* dfs_disparity=nullptr) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Run rvDFS and get point cloud with color image
+        /// @param imgL
+        ///   Left image pointer
+        /// @param imgR
+        ///   Right image pointer
+        /// @param pointCloud
+        ///   point cloud pointer to pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
+        //------------------------------------------------------------------------------
+	    virtual bool calculatePointCloudColor(uint8_t* imgL, uint8_t* imgR, PointCloudColorType* pointCloud, rvDFSDisparity* dfs_disparity=nullptr) = 0;
 
         //------------------------------------------------------------------------------
         /// @detailed
@@ -95,7 +127,7 @@ namespace rv_dfs
         /// @param pointCloud
         ///   point cloud pointer to pointer for output
         //------------------------------------------------------------------------------
-        virtual bool depth2PointCloudColor(uint8_t* imgRectL, float* depth, PointCloudType* pointCloud) = 0;
+        virtual bool depth2PointCloudColor(uint8_t* imgRectL, float* depth, PointCloudColorType* pointCloud) = 0;
 
 
         //------------------------------------------------------------------------------
@@ -116,6 +148,14 @@ namespace rv_dfs
         //-----------------------------------------------------------------------------
 	    virtual rvStereoConfiguration getRectifiedCameraParameter() = 0;
 
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Get disparity map. Can be used after calculateDepth/calculatePointCloud/calculatePointCloudColor.
+        ///     Only valid for RV_DFS_COVERAGE and RV_DFS_SPEED modes
+        /// @param disparities
+        ///   Disparity map pointer for output
+        //------------------------------------------------------------------------------
+        virtual void getDisparity(float* disparities) = 0;
 	};
 
 }  // namespace rv_dfs

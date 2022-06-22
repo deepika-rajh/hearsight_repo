@@ -35,7 +35,7 @@ namespace dfs_test_tool {
 		}
 	}
 
-	void writePLYPointcloudColor(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height)
+	void writePLYPointcloudColor(const std::string& ply_file_path, const PointCloudColorType& pointCloud, size_t width, size_t height)
 	{
 		std::ofstream o_st(ply_file_path);
 		o_st << "ply" << std::endl;
@@ -148,11 +148,16 @@ namespace dfs_test_tool {
 		fs["T"] >> T;
 
 		cv::Vec3d rot_rodrigues;
-		cv::Rodrigues(R, rot_rodrigues);
+		// std::cout << "R size is "<< R.total();
+		if(R.total() > 3)
+			cv::Rodrigues(R, rot_rodrigues);
 		for (int i = 0; i < 3; ++i)
 		{
 			dfs_parameter.translation[i] = T.at<double>(i, 0);
-			dfs_parameter.rotation[i] = rot_rodrigues[i];
+			if(R.total()>3)
+				dfs_parameter.rotation[i] = rot_rodrigues[i];
+			else
+				dfs_parameter.rotation[i] = R.at<double>(i,0);
 		}
 
 		return dfs_parameter;

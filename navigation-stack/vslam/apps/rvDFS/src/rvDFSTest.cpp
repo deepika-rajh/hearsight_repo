@@ -22,7 +22,12 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #ifdef PROFILING
 #include <chrono>
+#include <thread>
 #endif
+
+//#include <glog/logging.h>
+#line 25 "rvDFSTest.cpp" 
+
 
 //#define DFS_CPP_STYLE_INTERFACE
 
@@ -31,11 +36,14 @@ int RV_LOG_LEVEL = 1;
 bool RV_STDERR_LOGGING = true;
 
 // global variables
-int gNumRows = 480, gNumCols = 640, gStride=640;
+int gNumRows = 480, gNumCols = 640, gStride = 640;
 int gNumLoops = 1;
-int32_t gMinDisparity = 1;
-int32_t gLevelDisparity = 32;
-rvDFSMode gRunningMode = rvDFSMode::RV_DFS_SPEED_GPU;
+int gMinDisparity = 1;
+int gLevelDisparity = 32;
+rvDFSMode gRunningMode = rvDFSMode::RV_DFS_SPEED;
+int gFPS = 0;
+bool gDynamicRange = false;		// False: use disparity range defined in initialization, True: use disparity range set in disparity/depth/pointcloud APIs
+int gOutputFormat = 0;			//0: disparity, 1: depth, 2: point cloud, 3: point cloud fusion with left image
 
 string gLeftImage = "";
 string gRightImage = "";
@@ -51,9 +59,6 @@ void printHelp()
 		"arg] [-t arg] -[r arg] -[i arg] -[c arg]\n"
 		"-m"
 		"\t arg denotes running mode 0-CVP, 1-SW, 2-GPU, 3-Guided\n"
-		"-t"
-		"\t arg denotes directory where text version of disparity and inverse "
-		"disparity are stored, by default text output is disabled\n"
 		"-n"
 		"\t arg denotes number of profiling loops in non-sequence mode\n"
 		"-d"
@@ -68,11 +73,19 @@ void printHelp()
 		"\t arg denotes width of input images\n"
 		"-h"
 		"\t arg denotes hight of input images\n"
+		"-s"
+		"\t arg denotes stride of input images\n"
 		"-c"
 		"\t arg denotes calibration parameter file\n"
+		"-f"
+		"\t arg denotes desired fps\n"
+		"-o"
+		"\t arg denotes output format 0: disparity, 1: depth, 2: point cloud, 3: point cloud fusion with left image"
+		"-R"
+		"\t arg sets dynamic disparity range, e.g. alternately use the first and second half of the range"
 		"-H"
 		"\t Print help information.\n";
-	//	printf("%s\n", gHelp);
+		printf("%s\n", gHelp);
 #else
 	printf(
 		"!!! On windows, rectified image asummed,\n Usage: leftImageName "
@@ -85,7 +98,8 @@ void parseCommandLine(int argc, char* argv[])
 {
 #ifdef __LINUX__
 	int c, mode, loops;
-	while ((c = getopt(argc, argv, "r:n:m:D:d:l:i:f:w:h:c:H")) != -1) {
+	bool strideNotSet=true;
+	while ((c = getopt(argc, argv, "r:n:m:D:d:l:f:w:h:s:c:o:HR")) != -1) {
 		switch (c) {
 		case 'm':
 			gRunningMode = (rvDFSMode)atoi(optarg);
@@ -102,6 +116,9 @@ void parseCommandLine(int argc, char* argv[])
 		case 'l':
 			gLeftImage = optarg;
 			break;
+		case 'f':
+			gFPS = atoi(optarg);
+			break;
 		case 'r':
 			gRightImage = optarg;
 			break;
@@ -110,18 +127,34 @@ void parseCommandLine(int argc, char* argv[])
 			break;
 		case 'w':
 			gNumCols = atoi(optarg);
-			gStride = gNumCols;
+			if (strideNotSet)
+			{
+				gStride = gNumCols;
+			}
 			break;
-        case 'c':
+		case 's':
+			gStride = atoi(optarg);
+			strideNotSet = false;
+			break;
+		case 'c':
 			gStereoConfigFile = optarg;
 			break;
-        case 'H':
+        case 'o':
+			gOutputFormat = atoi(optarg);
+			if(gOutputFormat > 3)
+				gOutputFormat = 0;
+			break;
+		case 'R':
+			gDynamicRange = true;
+			break;
+		case 'H':
 			printHelp();
 			exit(1);
 		case '?':
 			if (optopt == 'm')
 				printf("option -%c requires an argument\n", optopt);
 			printHelp();
+			exit(1);
 		default:
 			printf("unknown argument\n");
 			printHelp();
@@ -165,40 +198,50 @@ void readImage(const char* imageName, cv::Mat& image)
 		// Read left and right images
 		fread((void*)image.data, sizeof(char), gStride * gNumRows, inputFileL);
 		fclose(inputFileL);
+		//gNumCols, gNumRows and gStride relies on user input
 	}
 	else
 	{
 		image = cv::imread(imageName);
+		if (gRightImage.empty())
+		{
+			gNumCols = image.cols / 2;
+		}
+		else
+		{
+			gNumCols = image.cols;
+		}
+		gStride = image.step;
+		gNumRows = image.rows;
 	}
 	if (image.channels() == 3)
 	{
-        if (gRunningMode == 5)
-        {
-            cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
-            RV_DBG("convert to RGB");
-        }
-        else if(gRunningMode != 4)
-        {
-            cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
-            RV_DBG("convert to gray");
-        }
-    }
-	if(gRightImage.empty())
-	{
-		gNumCols = image.cols/2;
+		if (gRunningMode == 5)
+		{
+			cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+			RV_DBG("convert to RGB");
+		}
+		else if (gRunningMode != 4)
+		{
+			cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+			RV_DBG("convert to gray");
+		}
+		if (gRightImage.empty())
+		{
+			gNumCols = image.cols / 2;
+		}
+		else
+		{
+			gNumCols = image.cols;
+		}
 		gStride = image.step;
+		gNumRows = image.rows;
 	}
-	else
-	{
-		gNumCols = image.cols;
-		gStride = image.step;
-	}
-	gNumRows = image.rows;
-	RV_DBG("image %s size is %d x %d", imageName, gNumCols, gNumRows);
+
+	RV_DBG("image %s size is %d x %d, stride is %d", imageName, gNumCols, gNumRows, gStride);
 }
 
-void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
-	const rvStereoConfiguration& stereo_parameter, rvStereoConfiguration* rectified_stereo_parameter, std::string fullFolder)
+void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
 {
 	std::cout << "Run C-style interface." << std::endl;
 
@@ -210,52 +253,55 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
     rvDFSParameter dfs_parameter;
     dfs_parameter.filterHeight = 9;
     dfs_parameter.filterWidth = 15;
-    dfs_parameter.minDisparity = gMinDisparity;
-    dfs_parameter.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.disparity.minDisparity = gMinDisparity;
+    dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
     dfs_parameter.doRectification = gDoRectification;
     dfs_parameter.doGpuRect = false;
+	//For dynamic disparity range settings
+	rvDFSDisparity dRange1,dRange2;
 
-    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED_GPU;
+	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
 	if (gRunningMode == 0)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_CVP;
 	}
 	else if (gRunningMode == 1)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED_CPU;
+		dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
 	}
 	else if (gRunningMode == 2)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED_GPU;
-		if(dfs_parameter.doRectification)
+		dfs_mode = rvDFSMode::RV_DFS_SPEED;
+		if (dfs_parameter.doRectification)
 			dfs_parameter.doGpuRect = true;
 	}
 	else if (gRunningMode == 3)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_ACCURACY_CPU;
+		dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
 	}
-    else if (gRunningMode == 4)
+
+    if (gDynamicRange)
     {
-        dfs_mode = rvDFSMode::RV_DFS_COVERAGE_CPU;
-    }
-    else if (gRunningMode == 5)
-    {
-        dfs_mode = rvDFSMode::RV_DFS_COVERAGE_GPU;
+        dRange1.minDisparity = gMinDisparity;
+		dRange1.numDisparityLevels = gLevelDisparity/2;
+		dRange2.minDisparity = gMinDisparity+dRange1.numDisparityLevels;
+		dRange2.numDisparityLevels = gLevelDisparity - gLevelDisparity/2;
     }
 	
 	rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
-	if (dfs_handle == nullptr) return;
-	*rectified_stereo_parameter = rvDFS_GetRectifiedCameraParameter(dfs_handle);
+	if (dfs_handle == nullptr)
+		return;
+	rvStereoConfiguration rectified_stereo_parameter = rvDFS_GetRectifiedCameraParameter(dfs_handle);
 
-	uint8_t *pLImg, *pRImg;
+	uint8_t* pLImg, * pRImg;
 	pLImg = leftImage.ptr<uint8_t>();
-	if(gRightImage.empty())
+	if (gRightImage.empty())
 		pRImg = nullptr;
 	else
 		pRImg = rightImage.ptr<uint8_t>();
 #ifdef PROFILING
 	auto start = std::chrono::high_resolution_clock::now();
-	if(gStereoConfigFile.empty())
+	if (gStereoConfigFile.empty())
 	{
 		for (int i = 0; i < gNumLoops; i++)
 		{
@@ -266,13 +312,44 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 	{
 		for (int i = 0; i < gNumLoops; i++)
 		{
-			rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
+			if(gOutputFormat==0)
+			{
+				if(!gDynamicRange)
+				{
+					rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						rvDFS_CalculateDisparityWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						rvDFS_CalculateDisparityWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else if(gOutputFormat==1)
+			{
+				if(!gDynamicRange)
+				{
+					rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						rvDFS_CalculateDepthWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						rvDFS_CalculateDepthWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else 
+			{
+				RV_DBG("TBD, std::vector in C?");
+			}
 		}
 	}
 	auto finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
 	RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
-	if(!gStereoConfigFile.empty())
+	if (!gStereoConfigFile.empty())
 	{
 		PointCloudType pcl;
 		rvDFS_Depth2PointCloud(dfs_handle, disparityMap->ptr<float>(), &pcl);
@@ -280,7 +357,7 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
 	}
 #else
-	if(gStereoConfigFile.empty())
+	if (gStereoConfigFile.empty())
 	{
 		if (!rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>()))
 			return;
@@ -290,7 +367,7 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 		if (!rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>()))
 			return;
 		PointCloudType pcl;
-		if(!rvDFS_Depth2PointCloud(dfs_handle, disparityMap->ptr<float>(), &pcl))
+		if (!rvDFS_Depth2PointCloud(dfs_handle, disparityMap->ptr<float>(), &pcl))
 			return;
 		std::string ply_file = fullFolder + ("/point_cloud.ply");
 		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
@@ -300,239 +377,366 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
 }
 
 
-void RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap,
-	const rvStereoConfiguration& stereo_parameter, rvStereoConfiguration* rectified_stereo_parameter, std::string fullFolder)
+bool RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
 {
-	if (rectified_stereo_parameter == nullptr) {
-		std::cout << "rectified_stereo_parameter is null" << std::endl;
-		return;
-	}
-	std::cout << "Run Cpp-style interface." << std::endl;
-
 	if (!disparityMap)
 	{
-		std::cout << "Input disparity_map is empty" << std::endl;
-		return;
+		return false;
 	}
 
     rvDFSParameter dfs_parameter;
-    dfs_parameter.filterHeight = 15;
+    dfs_parameter.filterHeight = 9;
     dfs_parameter.filterWidth = 15;
-    dfs_parameter.minDisparity = gMinDisparity;
-    dfs_parameter.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.disparity.minDisparity = gMinDisparity;
+    dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
     dfs_parameter.doRectification = gDoRectification;
     dfs_parameter.doGpuRect = false;
-
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_COVERAGE_GPU;
+	
+	rvDFSDisparity dRange1,dRange2;		//For dynamic disparity range settings
+	PointCloudType pcl;
+	pcl.reserve(gNumCols*gNumRows*3);
+	PointCloudColorType pclColor;
+	pclColor.reserve(gNumCols*gNumRows*6);
+	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
 	if (gRunningMode == 0)
 	{
 		dfs_mode = rvDFSMode::RV_DFS_CVP;
 	}
 	else if (gRunningMode == 1)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED_CPU;
+		dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
 	}
 	else if (gRunningMode == 2)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED_GPU;
-		if(gDoRectification)
-		    dfs_parameter.doGpuRect = true;
-        }
+		dfs_mode = rvDFSMode::RV_DFS_SPEED;
+		if (gDoRectification)
+			dfs_parameter.doGpuRect = true;
+	}
 	else if (gRunningMode == 3)
 	{
-		dfs_mode = rvDFSMode::RV_DFS_ACCURACY_CPU;
-	}
-	else if (gRunningMode == 4)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_COVERAGE_CPU;
-	}
-	else if (gRunningMode == 5)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_COVERAGE_GPU;
-//        dfs_parameter.doGpuRect = true;
+		dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
 	}
 
+	if (gDynamicRange)
+    {
+        dRange1.minDisparity = gMinDisparity;
+		dRange1.numDisparityLevels = gLevelDisparity/2;
+		dRange2.minDisparity = gMinDisparity+dRange1.numDisparityLevels;
+		dRange2.numDisparityLevels = gLevelDisparity - gLevelDisparity/2;
+    }
+	
 	std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
 	if (dfs_base == nullptr)
-		return;
+		return false;
 
-	//test seperate side by side input image
-	// cv::Mat leftI = leftImage(cv::Rect(0,0,leftImage.cols/2,leftImage.rows)).clone();
-	// cv::Mat rightI = leftImage(cv::Rect(leftImage.cols/2,0,leftImage.cols/2,leftImage.rows)).clone();
-	// cv::imwrite("rightImage.bmp", rightI);
-	// cv::imwrite("leftImage.bmp", leftI);
-	// gStride = gNumCols;
-	
 	dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
-	*rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
-	uint8_t *pLImg, *pRImg;
+	rvStereoConfiguration rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
+	uint8_t* pLImg, * pRImg;
 	pLImg = leftImage.ptr<uint8_t>();
-	if(gRightImage.empty())
+	if (gRightImage.empty())
 		pRImg = nullptr;
 	else
 		pRImg = rightImage.ptr<uint8_t>();
 
-// //test seperate side by side input image
-// 	pLImg = leftI.ptr<uint8_t>();
-// 	pRImg = rightI.ptr<uint8_t>();
-// 	cv::Mat leftImage1(gNumRows, gNumCols, CV_8UC1, pLImg);
-// 	cv::Mat rightImage1(gNumRows, gNumCols, CV_8UC1, pRImg);
-// 	cv::imwrite("leftImageb4input.bmp", leftImage1);
-// 	cv::imwrite("rightImageb4input.bmp", rightImage1);
-				
-
-#ifdef PROFILING
 	auto start = std::chrono::high_resolution_clock::now();
-	if(gStereoConfigFile.empty())
+	if(gFPS>0)
 	{
+		auto durFrame = std::chrono::duration<double>(1.0/gFPS);
+		auto thres = std::chrono::duration<double>(0.000001);
+		auto tsPrev = start;
 		for (int i = 0; i < gNumLoops; i++)
 		{
-			dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
+			if(gStereoConfigFile.empty() || gOutputFormat == 0)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else if(gOutputFormat==1)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else if(gOutputFormat==2)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange1);
+					else
+						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange2);
+				}
+			}
+			else	//point cloud fusion with left image
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange1);
+					else
+						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange2);
+				}
+			}
+
+			auto ts = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> dur = durFrame - (ts - tsPrev);
+			// RV_ERR("dur %f, thres %f", dur.count(),thres.count());
+			if(dur>thres)
+			{
+				
+				std::this_thread::sleep_for(dur);
+			}
+			tsPrev = std::chrono::high_resolution_clock::now();
 		}
 	}
 	else
 	{
 		for (int i = 0; i < gNumLoops; i++)
 		{
-			dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>());
+			if(gStereoConfigFile.empty() || gOutputFormat == 0)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else if(gOutputFormat==1)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>());
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
+					else
+						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
+				}
+			}
+			else if(gOutputFormat==2)
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange1);
+					else
+						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange2);
+				}
+			}
+			else	//point cloud fusion with left image
+			{
+				if(!gDynamicRange)
+				{
+					dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
+				}
+				else
+				{
+					if(i%2==0)
+						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange1);
+					else
+						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange2);
+				}
+			}
 		}
 	}
 	auto finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
 	RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
-	if(!gStereoConfigFile.empty())
+	//LOG(INFO) << "Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops;
+
+	if(gStereoConfigFile.empty() || gOutputFormat == 0)		//save disparity map, original and false color images, as well as pfm format which is designed by middlebury
+	{
+		//save colorized disparity image
+		cv::Mat disparityImageChar(disparityMap->size(), CV_8UC1);
+		cv::Mat disparityImageFloat(disparityMap->size(), CV_32FC1);
+		// dfs_base->getDisparity((float*)disparityImageFloat.data);
+		unsigned char* pDisparityChar = (unsigned char*)disparityImageChar.data;
+		float* pDisparityFloat = (float*)disparityMap->data;
+		for (int ii = 0; ii < disparityMap->cols * disparityMap->rows; ++ii)
+		{
+			pDisparityChar[ii] = static_cast<unsigned char>(round(pDisparityFloat[ii]));
+			if(gRunningMode == 2 && pDisparityFloat[ii] == 0.0)
+				pDisparityFloat[ii] = INFINITY;		//gRunningMode 2 doesn't set INFINITY for disparity map
+		}
+		cv::imwrite(fullFolder + "/disparityOri.png", *disparityMap);
+		double min;
+		double max;
+		cv::minMaxIdx(disparityImageChar, &min, &max);
+		double scale = 255. / (max - min);
+		disparityImageChar.convertTo(disparityImageChar, CV_8UC1, scale, -min * scale);
+		cv::Mat falseColorsMap;
+		cv::applyColorMap(disparityImageChar, falseColorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullFolder + "/disparity.png", falseColorsMap);
+/*
+		//save "pfm" image for evaluation
+		std::string pfmPath = fullFolder + "/disp0FCVF.pfm";
+#ifdef WIN32
+		WriteFilePFM((float*)disparityMap->data, disparityMap->cols, disparityMap->rows, pfmPath.c_str());
+#else
+		CShape sh(disparityMap->cols, disparityMap->rows, 1);
+		CFloatImage fdisp;
+		fdisp.ReAllocate(sh,(float*)disparityMap->data, false, sh.width*sizeof(float));
+		WriteFilePFM(fdisp, pfmPath.c_str(), (float)(1.0/255.0));
+#endif
+*/
+	}
+	else if(gOutputFormat==1)		//depth map, save rectified images as well
 	{
 		cv::Mat rectLImg, rectRImg;
-		if(gRunningMode == 5)
+		if (gRunningMode == 5)
 		{
 			rectLImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
-        	rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
+			rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
 		}
-        else
+		else
 		{
 			rectLImg = cv::Mat(gNumRows, gNumCols, CV_8UC1);
-        	rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC1);
+			rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC1);
 		}
-		// if(pRImg==nullptr)
-		// 	dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), nullptr);
-		// else
-		{
-			dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
-			cv::imwrite("rightRectifiedImage.bmp", rectRImg);
-		}
-		cv::imwrite("leftRectifiedImage.bmp", rectLImg);
-		
-		PointCloudType pcl;
-		dfs_base->depth2PointCloudColor(rectLImg.ptr<uint8_t>(), disparityMap->ptr<float>(), &pcl);
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloudColor(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-	}
-#else
-	if(gStereoConfigFile.empty())
-	{
-		dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
-	}
-	else
-	{
-		if(!dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>()))
-			return;
-		PointCloudType pcl;
-		cv::Mat rectLImg(gNumRows, gStride, CV_8UC1);
-		cv::Mat rectRImg(gNumRows, gNumCols, CV_8UC1);
-		if(!dfs_base->depth2PointCloudColor(rectLImg.ptr<uint8_t>(), disparityMap->ptr<float>(), &pcl))
-			return;
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloudColor(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-	}
-#endif
 
-    // if(gDoRectification)
-    // {
-	// 	if(gRunningMode == 5)
-	// 	{
-	// 		cv::Mat rectLImg(gNumRows, gNumCols, CV_8UC3);
-    //     	cv::Mat rectRImg(gNumRows, gNumCols, CV_8UC3);
-	// 		dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
-	// 		cv::imwrite("leftRectifiedImage.bmp", rectLImg);
-	// 		cv::imwrite("rightRectifiedImage.bmp", rectRImg);
-	// 	}
-    //     else
-	// 	{
-	// 		cv::Mat rectLImg(gNumRows, gStride, CV_8UC1);
-    //     	cv::Mat rectRImg(gNumRows, gNumCols, CV_8UC1);
-	// 		dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
-	// 		cv::imwrite("leftRectifiedImage.bmp", rectLImg);
-	// 		cv::imwrite("rightRectifiedImage.bmp", rectRImg);
-	// 	}
-    // }
-	return;
+		//save rectified images
+		dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
+		cv::imwrite(fullFolder + "/rightRectifiedImage.png", rectRImg);
+		cv::imwrite(fullFolder + "/leftRectifiedImage.png", rectLImg);
+		
+		//save raw depth image, assume the unit is centimeter
+		cv::Mat depthImage(disparityMap->size(), CV_8UC1);
+		unsigned char* pDepth = (unsigned char*)depthImage.data;
+		float* pFloatDisparity = (float*)disparityMap->data;
+		for (int ii = 0; ii < disparityMap->cols * disparityMap->rows; ++ii)
+		{
+			pDepth[ii] = static_cast<unsigned char>(round(pFloatDisparity[ii]*100.0));
+		}
+		cv::imwrite(fullFolder + "/depth.png", depthImage);
+
+		//save colorized depth image
+		double min;
+		double max;
+		cv::minMaxIdx(depthImage, &min, &max);
+		double scale = 255. / (max - min);
+		depthImage.convertTo(depthImage, CV_8UC1, scale, -min * scale);
+		cv::Mat falseColorsMap;
+		cv::applyColorMap(depthImage, falseColorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullFolder + "/depthFalseColor.png", falseColorsMap);
+	}
+	else if(gOutputFormat==2)		//point cloud
+	{
+		//save cloud point
+		std::string ply_file = fullFolder + ("/point_cloud.ply");
+		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
+	}
+	else	//point cloud color
+	{
+		//save cloud point fusion with gray scale left image
+		std::string ply_file = fullFolder + ("/point_cloud_color.ply");
+		dfs_test_tool::writePLYPointcloudColor(ply_file, pclColor, disparityMap->cols, disparityMap->rows);
+	}
+
+	return true;
 }
 
 void readRectifiedPara(rvStereoConfiguration& rectified_stereo_parameter, const std::string& file)
 {
-//load parameter files
-    cv::FileStorage fs(file, cv::FileStorage::READ);
-    if (!fs.isOpened())
-        return; //xsh
-    cv::Mat P1;
-    fs["P1"] >> P1;
-    cv::Mat P2;
-    fs["P2"] >> P2;
-//rectified_stereo_parameter
-    double disparity_to_depth_factor_ = P2.at<double>(0, 3);
-    double rectified_focal_length = P1.at<double>(0, 0);
-//update rectified_stereo_parameter_
-    for (int k = 0; k < 2; ++k) {
-        rectified_stereo_parameter.camera[k].focalLength[0] = rectified_focal_length;
-        rectified_stereo_parameter.camera[k].focalLength[1] = rectified_focal_length;
-        rectified_stereo_parameter.camera[k].principalPoint[0] = P1.at<double>(0, 2);
-        rectified_stereo_parameter.camera[k].principalPoint[1] = P1.at<double>(1, 2);
-        for (int i = 0; i < 8; ++i) {
-            rectified_stereo_parameter.camera[k].distortion[i] = 0.0;
-        }
-    }
-    for (int i = 0; i < 3; ++i)
-    {
-        rectified_stereo_parameter.rotation[i] = 0.0;
-        rectified_stereo_parameter.translation[i] = 0.0;
-    }
-    if (rectified_focal_length != 0.0)
-        rectified_stereo_parameter.translation[0] = disparity_to_depth_factor_ / rectified_focal_length;
-//xsh
+	//load parameter files
+	cv::FileStorage fs(file, cv::FileStorage::READ);
+	if (!fs.isOpened())
+		return; //xsh
+	cv::Mat P1;
+	fs["P1"] >> P1;
+	cv::Mat P2;
+	fs["P2"] >> P2;
+	//rectified_stereo_parameter
+	double disparity_to_depth_factor_ = P2.at<double>(0, 3);
+	double rectified_focal_length = P1.at<double>(0, 0);
+	//update rectified_stereo_parameter_
+	for (int k = 0; k < 2; ++k) {
+		rectified_stereo_parameter.camera[k].focalLength[0] = rectified_focal_length;
+		rectified_stereo_parameter.camera[k].focalLength[1] = rectified_focal_length;
+		rectified_stereo_parameter.camera[k].principalPoint[0] = P1.at<double>(0, 2);
+		rectified_stereo_parameter.camera[k].principalPoint[1] = P1.at<double>(1, 2);
+		for (int i = 0; i < 8; ++i) {
+			rectified_stereo_parameter.camera[k].distortion[i] = 0.0;
+		}
+	}
+	for (int i = 0; i < 3; ++i)
+	{
+		rectified_stereo_parameter.rotation[i] = 0.0;
+		rectified_stereo_parameter.translation[i] = 0.0;
+	}
+	if (rectified_focal_length != 0.0)
+		rectified_stereo_parameter.translation[0] = disparity_to_depth_factor_ / rectified_focal_length;
+	//xsh
 }
 
 
-void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat &imgDisparity8U)
+void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat& imgDisparity8U)
 {
-    cv::Size imgSize = imgL.size();
-    int numberOfDisparities = gLevelDisparity; // ((imgSize.width / 8) + 15) & -16;
-    cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(1, 16, 3);
-    sgbm->setPreFilterCap(63);
-    int SADWindowSize = 9;
-    int sgbmWinSize = SADWindowSize > 0 ? SADWindowSize : 3;
-    sgbm->setBlockSize(sgbmWinSize);
+	cv::Size imgSize = imgL.size();
+	int numberOfDisparities = gLevelDisparity; // ((imgSize.width / 8) + 15) & -16;
+	cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(1, 16, 3);
+	sgbm->setPreFilterCap(63);
+	int SADWindowSize = 9;
+	int sgbmWinSize = SADWindowSize > 0 ? SADWindowSize : 3;
+	sgbm->setBlockSize(sgbmWinSize);
 
-    int cn = imgL.channels();
-    sgbm->setP1(8 * cn*sgbmWinSize*sgbmWinSize);
-    sgbm->setP2(32 * cn*sgbmWinSize*sgbmWinSize);
-    sgbm->setMinDisparity(1);
-    sgbm->setNumDisparities(numberOfDisparities);
-    sgbm->setUniquenessRatio(10);
-    sgbm->setSpeckleWindowSize(100);
-    sgbm->setSpeckleRange(32);
-    sgbm->setDisp12MaxDiff(1);
+	int cn = imgL.channels();
+	sgbm->setP1(8 * cn * sgbmWinSize * sgbmWinSize);
+	sgbm->setP2(32 * cn * sgbmWinSize * sgbmWinSize);
+	sgbm->setMinDisparity(1);
+	sgbm->setNumDisparities(numberOfDisparities);
+	sgbm->setUniquenessRatio(10);
+	sgbm->setSpeckleWindowSize(100);
+	sgbm->setSpeckleRange(32);
+	sgbm->setDisp12MaxDiff(1);
 
-    int alg = cv::StereoSGBM::MODE_SGBM;
-    if (alg == cv::StereoSGBM::MODE_HH)
-        sgbm->setMode(cv::StereoSGBM::MODE_HH);
-    else if (alg == cv::StereoSGBM::MODE_SGBM)
-        sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
-    else if (alg == cv::StereoSGBM::MODE_SGBM_3WAY)
-        sgbm->setMode(cv::StereoSGBM::MODE_SGBM_3WAY);
+	int alg = cv::StereoSGBM::MODE_SGBM;
+	if (alg == cv::StereoSGBM::MODE_HH)
+		sgbm->setMode(cv::StereoSGBM::MODE_HH);
+	else if (alg == cv::StereoSGBM::MODE_SGBM)
+		sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
+	else if (alg == cv::StereoSGBM::MODE_SGBM_3WAY)
+		sgbm->setMode(cv::StereoSGBM::MODE_SGBM_3WAY);
 
-    cv::Mat imgDisparity16S = cv::Mat(imgL.rows, imgL.cols, CV_16S);
+	cv::Mat imgDisparity16S = cv::Mat(imgL.rows, imgL.cols, CV_16S);
 #ifdef PROFILING
-    auto start = std::chrono::high_resolution_clock::now();
+	auto start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < gNumLoops; i++)
 	{
 		sgbm->compute(imgL, imgR, imgDisparity16S);
@@ -542,41 +746,42 @@ void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat &imgDisparity8U)
 
 	RV_ERR("SGBM Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
 #else
-    sgbm->compute(imgL, imgR, imgDisparity16S);
+	sgbm->compute(imgL, imgR, imgDisparity16S);
 #endif
-    cv::imwrite("disparitySGBM16S.bmp", imgDisparity16S);
-    imgDisparity16S.convertTo(imgDisparity8U, CV_32F , 255 / (255*16.));
+	cv::imwrite("disparitySGBM16S.bmp", imgDisparity16S);
+	imgDisparity16S.convertTo(imgDisparity8U, CV_32F, 255 / (255 * 16.));
+/*
 #ifdef WIN32
-	//WriteFilePFM((float*)imgDisparity8U.data, imgDisparity8U.cols, imgDisparity8U.rows, "disp0SGBM32F.pfm");
+	WriteFilePFM((float*)imgDisparity8U.data, imgDisparity8U.cols, imgDisparity8U.rows, "disp0SGBM32F.pfm");
 #else
-	//CShape sh(imgDisparity8U.cols, imgDisparity8U.rows, 1);
-	//CFloatImage fdisp;
-	//fdisp.ReAllocate(sh,(float*)imgDisparity8U.data, false, sh.width*sizeof(float));
-	//WriteFilePFM(fdisp, "disp0SGBM32F.pfm",(float)(1.0/255.0));
+	CShape sh(imgDisparity8U.cols, imgDisparity8U.rows, 1);
+	CFloatImage fdisp;
+	fdisp.ReAllocate(sh, (float*)imgDisparity8U.data, false, sh.width * sizeof(float));
+	WriteFilePFM(fdisp, "disp0SGBM32F.pfm", (float)(1.0 / 255.0));
 #endif
+*/
 }
 
 int main(int argc, char* argv[])
 {
 	parseCommandLine(argc, argv);
+
+	//LOG_IF(FATAL, gLeftImage.empty()) << "Not specify the image path!";
+
 	cv::Mat leftImage, rightImage;
-	if(gRightImage.empty())
+	if (gRightImage.empty())
 	{
-		gStride*=2;
 		readImage(gLeftImage.c_str(), leftImage);
-		if(gRunningMode!=2)
-		{
-			gStride /= 2;
-		}
 	}
 	else
 	{
 		readImage(gLeftImage.c_str(), leftImage);
 		readImage(gRightImage.c_str(), rightImage);
 	}
-	
+	//LOG_IF(FATAL, gLeftImage.empty()) << "Error in reading " << gLeftImage;
+
 	cv::Mat disp;
-	disp = cv::Mat::zeros(gNumRows, gNumCols, CV_32F);
+	disp = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
 
 	// cv::Mat imgDisparity8U = cv::Mat(gNumRows, gNumCols, CV_8UC1);
 //    calDispWithSGBM(leftImage, rightImage, imgDisparity8U);
@@ -597,67 +802,15 @@ int main(int argc, char* argv[])
 	else
 		fullFolder.resize(s);
 
-	rvStereoConfiguration rectified_stereo_parameter;
+
 #ifdef DFS_CPP_STYLE_INTERFACE
-	RunTestCpp(leftImage, rightImage, &disp, stereo_parameter, &rectified_stereo_parameter, fullFolder);
+	if (!RunTestCpp(leftImage, rightImage, &disp, stereo_parameter, fullFolder))
+		std::cout << "Error in processing current image pair!";
 #else
-	RunTestC(leftImage, rightImage, &disp, stereo_parameter, &rectified_stereo_parameter, fullFolder);
+	RunTestC(leftImage, rightImage, &disp, stereo_parameter, fullFolder);
 #endif
 
-	if(gStereoConfigFile.empty()) // get disparity from DFS
-	{
-		cv::Mat disparityMap(disp.size(), CV_8UC1);
-		for (int i = 0; i < disp.rows; ++i)
-		{			
-			for (int j = 0; j < disp.cols; ++j)
-			{
-				disparityMap.at<uint8_t>(i, j) = static_cast<uint8_t>(std::round(disp.at<float>(i, j)));
-				if (disp.at<float>(i, j) == 0.0)
-				{
-					disp.at<float>(i, j) = INFINITY;
-				}
-			}
-		}
-		cv::imwrite(fullFolder + "/disparityOrig.bmp", disparityMap);
+	//DLOG(INFO) << gLeftImage << " finished!";
 
-		double min;
-		double max;
-		cv::minMaxIdx(disparityMap, &min, &max);
-		double scale = 255. / (max - min);
-		disparityMap.convertTo(disparityMap, CV_8UC1, scale, -min * scale);
-		cv::Mat falseColorsMap;
-		cv::applyColorMap(disparityMap, falseColorsMap, cv::COLORMAP_JET);
-		cv::imwrite(fullFolder + "/disparity.bmp", falseColorsMap);
-		std::string pfmPath = fullFolder + "/disp0FCVF.pfm";
-	#ifdef WIN32
-		//WriteFilePFM((float*)disp.data, disp.cols, disp.rows, pfmPath.c_str());
-	#else
-		//CShape sh(disparityMap.cols, disparityMap.rows, 1);
-		//CFloatImage fdisp;
-		//fdisp.ReAllocate(sh,(float*)disp.data, false, sh.width*sizeof(float));
-		//WriteFilePFM(fdisp, pfmPath.c_str(), (float)(1.0/255.0));
-	#endif
-	}
-	else // get depth from DFS
-	{
-		cv::Mat depthImage(disp.size(), CV_16UC1);
-		for (int i = 0; i < disp.rows; ++i)
-		{
-			for (int j = 0; j < disp.cols; ++j)
-			{
-				depthImage.at<unsigned short>(i, j) = static_cast<unsigned short>(disp.at<float>(i, j));
-			}
-		}
-		cv::imwrite(fullFolder + "/depth.png", depthImage);
-
-		double min;
-		double max;
-		cv::minMaxIdx(depthImage, &min, &max);
-		double scale = 255. / (max - min);
-		depthImage.convertTo(depthImage, CV_8UC1, scale, -min * scale);
-		cv::Mat falseColorsMap;
-		cv::applyColorMap(depthImage, falseColorsMap, cv::COLORMAP_JET);
-		cv::imwrite(fullFolder + "/depthColor.png", falseColorsMap);
-    }
 	return 0;
 }
