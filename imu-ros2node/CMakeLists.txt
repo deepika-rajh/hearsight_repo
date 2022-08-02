@@ -20,13 +20,14 @@ endif()
 include_directories (./include)
 
 if (CMAKE_CROSSCOMPILING)
-  set(ament_cmake_core_DIR "${DASHING_NATIVE_DIR}/share/ament_cmake_core/cmake")
-  include (${DASHING_NATIVE_DIR}/share/ament_cmake_core/cmake/ament_cmake_coreConfig.cmake)
+  set(ament_cmake_core_DIR "${ROS_NATIVE_DIR}/share/ament_cmake_core/cmake")
+  include (${ROS_NATIVE_DIR}/share/ament_cmake_core/cmake/ament_cmake_coreConfig.cmake)
   include_directories (${SYSROOT_INCDIR})
   include_directories (${SYSROOT_INCDIR}/Poco)
-  include_directories (${DASHING_DIR}/include)
+  include_directories (${ROS_DIR}/include)
   link_directories(${SYSROOT_LIBDIR})
-  link_directories(${DASHING_DIR}/lib)
+  link_directories(${ROS_DIR}/lib)
+  link_directories(${ROS_DIR}/lib/aarch64-linux-gnu)
 else ()
   # find dependencies
   find_package(ament_cmake REQUIRED)
@@ -38,88 +39,67 @@ endif ()
 add_executable(imu-ros2node src/imu_node.cpp)
 add_executable(imu-ros2test src/imu_node_test.cpp)
 
-if (CMAKE_CROSSCOMPILING AND ROS_FOXY)
-  set(ROS-DASHING
-    rclcpp
-    rcutils
-    yaml
-    rcl
-    rcl_interfaces__rosidl_generator_c
-    rcl_interfaces__rosidl_typesupport_c
-    rcl_interfaces__rosidl_typesupport_cpp
-    rcl_logging_noop
-    rcl_yaml_param_parser
-    rosgraph_msgs__rosidl_typesupport_cpp
-    message_filters
-    ament_index_cpp
-    class_loader
-    rmw
-    rmw_implementation
-    rosidl_typesupport_c
-    rosidl_typesupport_cpp
-    std_msgs__rosidl_generator_c
-    std_msgs__rosidl_typesupport_c
-    std_msgs__rosidl_typesupport_cpp
-    sensor_msgs__rosidl_typesupport_cpp
-    console_bridge
-    builtin_interfaces__rosidl_generator_c
-    libstatistics_collector
-    statistics_msgs__rosidl_typesupport_cpp
-    tracetools
-  )
+# build with cross toolchain
+if (CMAKE_CROSSCOMPILING)
+  if (ROS_VERSION STREQUAL "foxy")
+    set(ROS-VERSION-LIBS
+        rcpputils
+        rosidl_runtime_c
+        rcl_logging_spdlog
+        libstatistics_collector
+        statistics_msgs__rosidl_typesupport_cpp
+        tracetools
+      )
+  elseif (ROS_VERSION STREQUAL "dashing")
+    set(ROS-VERSION-LIBS
+        rosidl_generator_c
+        PocoFoundation
+      )
+  else ()
+    # TODO for error condition
+  endif ()
+
+  set(ROS-COMMON-LIBS
+      rclcpp
+      rcutils
+      yaml
+      rcl
+      rcl_interfaces__rosidl_generator_c
+      rcl_interfaces__rosidl_typesupport_c
+      rcl_interfaces__rosidl_typesupport_cpp
+      rcl_logging_noop
+      rcl_yaml_param_parser
+      rosgraph_msgs__rosidl_typesupport_cpp
+      message_filters
+      ament_index_cpp
+      class_loader
+      rmw
+      rmw_implementation
+      rosidl_typesupport_c
+      rosidl_typesupport_cpp
+      std_msgs__rosidl_generator_c
+      std_msgs__rosidl_typesupport_c
+      std_msgs__rosidl_typesupport_cpp
+      sensor_msgs__rosidl_typesupport_cpp
+      console_bridge
+      builtin_interfaces__rosidl_generator_c
+    )
+
   target_link_libraries(imu-ros2node PRIVATE
     pthread
     imu_client
-    ${ROS-DASHING}
+    ${ROS-COMMON-LIBS}
+    ${ROS-VERSION-LIBS}
   )
   target_link_libraries(imu-ros2test PRIVATE
     imu_client
-    ${ROS-DASHING}
+    ${ROS-COMMON-LIBS}
+    ${ROS-VERSION-LIBS}
   )
   install(TARGETS imu-ros2node imu-ros2test
     RUNTIME DESTINATION ${INSTALL_LIBDIR}/${PROJECT_NAME}
   )
-elseif (CMAKE_CROSSCOMPILING)
-  set(ROS-DASHING
-    rclcpp
-    rcutils
-    yaml
-    rcl
-    rcl_interfaces__rosidl_generator_c
-    rcl_interfaces__rosidl_typesupport_c
-    rcl_interfaces__rosidl_typesupport_cpp
-    rcl_logging_noop
-    rcl_yaml_param_parser
-    rosgraph_msgs__rosidl_typesupport_cpp
-    message_filters
-    ament_index_cpp
-    class_loader
-    rmw
-    rmw_implementation
-    rosidl_generator_c
-    rosidl_typesupport_c
-    rosidl_typesupport_cpp
-    std_msgs__rosidl_generator_c
-    std_msgs__rosidl_typesupport_c
-    std_msgs__rosidl_typesupport_cpp
-    sensor_msgs__rosidl_typesupport_cpp
-    console_bridge
-    builtin_interfaces__rosidl_generator_c
-  )
-  target_link_libraries(imu-ros2node PRIVATE
-    pthread
-    imu_client
-    PocoFoundation
-    ${ROS-DASHING}
-  )
-  target_link_libraries(imu-ros2test PRIVATE
-    imu_client
-    PocoFoundation
-    ${ROS-DASHING}
-  )
-  install(TARGETS imu-ros2node imu-ros2test
-    RUNTIME DESTINATION ${INSTALL_LIBDIR}/${PROJECT_NAME}
-  )
+# build on device
 else ()
   ament_target_dependencies(imu-ros2node
     rclcpp
@@ -138,7 +118,7 @@ else ()
   install(TARGETS imu-ros2node imu-ros2test
     RUNTIME DESTINATION lib/${PROJECT_NAME}
   )
-endif()
+endif ()
 
 if (NOT CMAKE_CROSSCOMPILING)
   if(BUILD_TESTING)
