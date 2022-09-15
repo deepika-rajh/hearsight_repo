@@ -52,6 +52,7 @@ typedef struct {
 	uint8_t state; //0:idle 1:running
 	uint16_t sample_rate;
 	ssc_connection *connection;
+	suid_lookup *lookup;
 	get_raw_data_func_t callback;
 }sensor_info_t;
 sensor_info_t sensor_info[SENSOR_TYPE_MAX] = {
@@ -239,8 +240,8 @@ int start_sns_connection(uint8_t idx)
 		return -3;
 	}
 
-	suid_lookup lookup(suid_cb);
-	lookup.request_suid(sensor_info[idx].name);
+	sensor_info[idx].lookup = new suid_lookup(suid_cb);
+	sensor_info[idx].lookup->request_suid(sensor_info[idx].name);
 	sensor_info[idx].state = SENSOR_RUNNING;
 
 	return 0;
@@ -260,6 +261,7 @@ int stop_sns_connection(uint8_t idx)
 		return -3;
 	}
 	delete sensor_info[idx].connection;
+	delete sensor_info[idx].lookup;
 	sensor_info[idx].state = SENSOR_IDLE;
 
 	return 0;
