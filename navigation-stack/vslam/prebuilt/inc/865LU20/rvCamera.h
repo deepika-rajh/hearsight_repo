@@ -1,0 +1,161 @@
+/*****************************************************************************
+@copyright
+Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
+All Rights Reserved.
+Confidential and Proprietary - Qualcomm Technologies, Inc.
+*******************************************************************************/
+
+#ifndef _ROBOT_VISION_CAMERA_H_
+#define _ROBOT_VISION_CAMERA_H_
+// @yanming move to src/
+#include "rv.h"
+#include <string>
+
+
+/************************************************************************//**
+   @detailed
+   Camera types
+****************************************************************************/
+typedef enum
+{
+    rvMonocular = 0,
+    rvGrayDepth = 1,
+    rvStereo
+} rvCameraType;
+
+
+/************************************************************************//**
+@detailed
+Image format
+****************************************************************************/
+enum rvImageFormat
+{
+    YUV_FORMAT = 0,
+    RAW_FORMAT,
+    NV12_FORMAT,
+};
+
+
+/************************************************************************//**
+@detailed
+   Parameters of rectified and undistorted camera. Combined with original
+   camera parameters, they can be used to generate 2 maps to warp
+   rectified image from original image. They also can be used as camera intrinsic for
+   localization and mapping when vSLAM engines use rectified images as input
+
+@param pixelWidth
+   Width of the rectified image in pixels.
+@param pixelHeight
+   Height of the rectified image in pixels.
+@param P[3][4]
+   Project matrix of the rectified camera, which projects a point in world coordinate to the camera's image.
+@param R[3][3]
+   Rotation matrix from rectified camera to original camera
+@initialized
+   Indicate if the parameters are set. If not, some functions to calculate
+   these parameters have to be called. One way is to call OpenCV functions.
+   For monocular cameras, R is usually 3*3 identity matrix and the first 3 columns of P
+   can be got from cv::getOptimalNewCameraMatrix() and the 4th cloumn is set 0s.
+   For stereo cameras, R and P can be got from initUndistortRectifyMap()
+****************************************************************************/
+typedef struct
+{
+    // Image:
+    uint32_t pixelWidth, pixelHeight;
+
+    // Calibration:
+    double P[3][4];
+    double R[3][3];
+    bool initialized;
+} rvRectCameraConfiguration;
+
+
+/************************************************************************//**
+@detailed
+Parameters of rectified and undistorted stereo camera.
+@param camera[2]
+Rectified camera. camera[0] is the rectified left camera and
+camera[1] is the rectified right camera.
+@translation[3]
+translation[0] is the rectified based line which is negative in general
+****************************************************************************/
+typedef struct
+{
+    float32_t translation[3];
+    rvRectCameraConfiguration camera[2];
+} rvRectStereoConfiguration;
+
+
+/************************************************************************//*
+@detailed
+Data structur to support different cameras. 
+@param imageFormat
+The format of camera image
+@param cameraType
+The type of camera.
+If the camera is monocular, only the stereo.camera[0] and stereoRec.camera[0] member are valid
+if the camera is a depth camera, its rgb camera is usually rectifed 
+and only the stereo.camera[0] is valid
+if the camera is a stereo camera, only the stereo and stereoRect are valid
+
+@param stereo
+Configurations for stereo camera
+@param stereoRect
+Configuration for rectified stereo camera     
+****************************************************************************/
+struct rvCameraParams
+{
+   //for monocular camera, use the camera[0] in stereo and stereoRect
+   rvCameraType cameraType;
+   rvImageFormat imageFormat;
+   rvStereoCamera stereo;
+   rvRectStereoConfiguration stereoRect; //read from configuration file, if not invalide
+};
+
+
+/************************************************************************//**
+@detailed
+   IMU configuration.
+@param imuEnabled
+   if the IMU enabled. If not, input IMU measurements are invalid.
+@param acceBias
+   Bias of the accelormenter
+@param gyroBias
+   Bias of the gyroscope
+@param deltaInSecond
+   Time diff between the IMU clock and camera clock
+@param cameraInIMU
+   Camera pose in IMU coordinate
+****************************************************************************/
+typedef struct
+{
+    bool imuEnabled;
+    float32_t acceBias[3], gyroBias[3];
+    float32_t deltaInSecond;
+    rvPose6DRT cameraInIMU;
+} rvIMUConfiguration;
+
+
+/************************************************************************//**
+@detailed
+   Wheel configuration.
+@param wheelEnabled
+   if the wheel enabled. If not, input wheel encode messages are invalid.
+@param baselinkInCamera
+   Pose of the wheel encoder in the camera  coordinate
+****************************************************************************/
+typedef struct
+{
+    bool wheelEnabled;
+    rvPose6DRT baselinkInCamera; //also the cross-calibration matrix;
+} rvWheelConfiguration;
+
+
+typedef struct
+{
+    std::string path;
+    float32_t targetWidth;
+    float32_t targetHeight;
+} rvTargetImage;
+
+#endif
