@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 
-include_directories(VSLAM_PREBUILT_INC_DIR)
-
-add_subdirectory(apps)
+if(LU20_APPS)
+    add_subdirectory(apps_lu20)
+else()
+    add_subdirectory(apps)
+endif()
 
