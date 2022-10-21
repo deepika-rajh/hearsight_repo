@@ -85,6 +85,12 @@ extern "C"
     * ********************************/
    RV_API const char* rvVersion( void );
 
+   /***********************************
+    * RVSDK OpenCL version requirement
+    * And query OpenCL Info of the device
+    * ********************************/
+   RV_API void rvQueryOpenCLInfo( void );
+
    struct PointAE {
        double x;
        double y;

@@ -38,6 +38,7 @@ target_link_libraries(${RV_DFS}
     tiff
     opencv_imgproc
     OpenCL
+    boost_filesystem
 )
 
 target_link_libraries(${RV_DFS} ${OpenCV_LIBS})
