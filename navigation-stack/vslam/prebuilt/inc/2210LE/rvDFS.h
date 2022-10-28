@@ -39,7 +39,7 @@ extern "C"
 
 	typedef enum
 	{
-		RV_DFS_CVP = 0,         	        //CVP hardware mode
+		RV_DFS_CVP = 0,         	            //CVP hardware mode
 		RV_DFS_COVERAGE,                        //CPU solution, speed mode
 		RV_DFS_SPEED,          	                //OpenCL solution, speed mode, fastest mode
 		RV_DFS_ACCURACY,       	                //CPU solution, accuracy mode

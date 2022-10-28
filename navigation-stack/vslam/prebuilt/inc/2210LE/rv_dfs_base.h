@@ -156,6 +156,14 @@ namespace rv_dfs
         ///   Disparity map pointer for output
         //------------------------------------------------------------------------------
         virtual void getDisparity(float* disparities) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     De-initialize 
+        /// @param disparities
+        ///   Disparity map pointer for output
+        //------------------------------------------------------------------------------
+        virtual void deInitialize() = 0;
 	};
 
 }  // namespace rv_dfs
