@@ -1,0 +1,14 @@
+# Copyright (c) 2022 Qualcomm Technologies, Inc.
+# All Rights Reserved.
+# Confidential and Proprietary - Qualcomm Technologies, Inc.
+
+robotsize: 0.40
+timeout: 30
+
+moveDistT: 0.06
+moveRotationT: 0.025
+#timeout4move 15
+#timeout4move:10
+timeout4move: 5
+
+expansion: 4
