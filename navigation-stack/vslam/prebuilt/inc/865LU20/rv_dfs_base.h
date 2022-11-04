@@ -109,6 +109,44 @@ namespace rv_dfs
 
         //------------------------------------------------------------------------------
         /// @detailed
+        ///     Run rvDFS and get disparity/depth/point cloud
+        /// @param imgL
+        ///   Left image pointer
+        /// @param imgR
+        ///   Right image pointer
+        /// @param disparities
+        ///   Disparity map pointer for output
+        /// @param depth
+        ///   Depth map pointer for output
+        /// @param pointCloud
+        ///   point cloud pointer to pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
+        //------------------------------------------------------------------------------
+	    virtual bool calculateDispDepthPointCloud(uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudType* pointCloud, rvDFSDisparity* dfs_disparity=nullptr) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Run rvDFS and get disparity/depth/point cloud with color image
+        /// @param imgL
+        ///   Left image pointer
+        /// @param imgR
+        ///   Right image pointer
+        /// @param disparities
+        ///   Disparity map pointer for output
+        /// @param depth
+        ///   Depth map pointer for output
+        /// @param pointCloud
+        ///   Point cloud pointer for output
+        /// @param pointCloudColor
+        ///   Point cloud color pointer for output
+        /// @param dfs_disparity
+        ///   DFS disparity parameters pointer, can be null
+        //------------------------------------------------------------------------------
+	    virtual bool calculateDispDepthPointCloudColor(uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudColorType* pointCloudColor, rvDFSDisparity* dfs_disparity=nullptr) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
         ///     Run rvDFS and convert depth map to point cloud
         /// @param depth
         ///   depth map pointer
@@ -144,7 +182,7 @@ namespace rv_dfs
         /// @detailed
         ///     Get rectified camera parameters
         /// @return
-        ///   return rvStereoConfiguration parameters
+        ///   return rvStereoCamera parameters
         //-----------------------------------------------------------------------------
 	    virtual rvStereoCamera getRectifiedCameraParameter() = 0;
 

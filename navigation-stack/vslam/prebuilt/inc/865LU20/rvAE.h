@@ -93,7 +93,7 @@ extern "C"
     };
 
 
-    enum STATUS { PURSUEGOAL, BACKTOORIGIN, ROTATE, AGAIN, HOLDON }; 
+    enum STATUS { PURSUEGOAL, BACKTOORIGIN, ROTATE, AGAIN, HOLDON };
     /************************************************************************//**
     @detailed
        Goal detection for robot automatically building the map
@@ -104,11 +104,11 @@ extern "C"
     @detailed
        Initialize rvAE.
     @param root_path
-       The root path of configuration file  
+       The root path of configuration file
     @returns
        Pointer to rvAE object; returns NULL if failed.
     ****************************************************************************/
-    RV_API rvAE* rvAE_Initialize(const char* root_path); 
+    RV_API rvAE* rvAE_Initialize(const char* root_path);
 
     /************************************************************************//**
     @detailed
@@ -127,7 +127,7 @@ extern "C"
        Successful or not. If failed, means there is no goal and the map completed
     ****************************************************************************/
     RV_API bool rvAE_determineGoal(rvAE* pObj, const MapInfo map, const AEPOSE curPos, AEPOSE& goal, STATUS& result);
-     
+
 
 
 
