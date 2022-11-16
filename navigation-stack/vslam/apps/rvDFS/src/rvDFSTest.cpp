@@ -18,15 +18,14 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #endif
 #include "dfs_factory.h"
 #include "rvDFS.h"
-#include "rvLog.h"
 #include "dfs_test_tools.h"
-#ifdef __LINUX__
-#include <getopt.h>
-#endif
 #include <boost/filesystem.hpp>
+#include "rvLog.h"
+
 #ifdef PROFILING
 #include <chrono>
 #include <thread>
+#include <mutex>
 #endif
 
 using namespace std;
@@ -38,15 +37,14 @@ int gNumRows = 480, gNumCols = 640, gStride = 640;
 int gNumLoops = 1;
 int gMinDisparity = 1;
 int gLevelDisparity = 32;
-rvDFSMode gRunningMode = rvDFSMode::RV_DFS_SPEED;
+int gRunningMode = 1;
 int gFPS = 0;
-bool gDynamicRange = false;		// False: use disparity range defined in initialization, True: use disparity range set in disparity/depth/pointcloud APIs
 int gOutputFormat = 2;			//0: disparity, 1: depth, 2: point cloud, 3: point cloud fusion with left image
 string gLeftImage = "";
 string gRightImage = "";
 string gStereoConfigFile = "";
 bool gDoRectification = false;	//False: input image pairs are undistorted and rectified, if stereo config file is provided, the parameters are rectified stereo parameters
-								//True: input image pairs should be undistorted or rectified with config file, stereo config file must be provided
+                                //True: input image pairs should be undistorted or rectified with config file, stereo config file must be provided
 
 bool gVerbose = false;
 
@@ -71,40 +69,42 @@ void    printHelp(const char * argv0)
     exename.erase(0, pos+1);
 
     for(int i=0; i<49; i++) putchar('-');
-    printf ("\nRobot Vision DFS Test Tool (%s %s)\n", __DATE__, __TIME__);
+    printf("\nRobot Vision DFS Test Tool (%s %s)\n", __DATE__, __TIME__);
     for(int i=0; i<49; i++) putchar('-');
     printf("\n");
-    printf ("Command: '%s'\n", argv0);
-    printf ("Usage: %s [options]\n", exename.c_str());
+    printf("Command: '%s'\n", argv0);
+    printf("Usage: %s [options]\n", exename.c_str());
 
-	static const char* text =
+    static const char* text =
         "   ----\t-----------\t\t-----------\n"
         "   Flag\tLong option\t\tDescription\n"
         "   ----\t-----------\t\t-----------\n"
-		"    -m\t--mode={0|1|2|3}\t"    "running mode 0: CVP, 1: SW, 2: GPU, 3: Guided\n"
-		"    -n\t--loop={count}\t\t"    "number of profiling loops in non-sequence mode\n"
-		"    -d\t--dsp-min={0~255}\t"   "lower limit of disparity search range\n"
-		"    -D\t--dsp-max={16~255}\t"  "how many levels of disparity search range, lower limit + levels = upper limit\n"
-		"    -R\t--dsp-range\t\t"       "enables dynamic disparity range\n"
-		"\t\t\t\t"                      "  e.g. alternately use the first and second half of the range\n"
-		"    -r\t--rimage={filename}\t" "path of right input image\n"
-		"    -l\t--limage={filename}\t" "path of left input image\n"
-		"    -w\t--width={value}\t\t"   "width of input images\n"
-		"    -h\t--height={value}\t"    "hight of input images\n"
-		"    -s\t--stride={value}\t"    "stride of input images\n"
-		"    -c\t--calib={filename}\t"  "calibration parameter file\n"
-		"    -u\t--undist={0|1}\t"		"are undistortion&rectification needed?"
-		"\t\t\t\t"						"0: input image pairs are undistorted and rectified, if stereo config file is provided, the parameters are rectified stereo parameters"
-		"\t\t\t\t"						"1: input image pairs should be undistorted or rectified with config file, stereo config file must be provided"
-		"    -f\t--fps={value}\t\t"     "desired fps\n"
-		"    -o\t--format={0|1|2|3}\t"  "output format\n"
+        "    -m\t--mode={0|1|2|3}\t"    "running mode 0: CVP, 1: SW, 2: GPU, 3: Guided\n"
+        "    -n\t--loop={count}\t\t"    "number of profiling loops in non-sequence mode\n"
+        "    -d\t--dsp-min={0~255}\t"   "lower limit of disparity search range\n"
+        "    -D\t--dsp-max={16~255}\t"  "how many levels of disparity search range, lower limit + levels = upper limit\n"
+        "    -R\t--dsp-range\t\t"       "enables dynamic disparity range\n"
+        "\t\t\t\t"                      "  e.g. alternately use the first and second half of the range\n"
+        "    -r\t--rimage={filename}\t" "path of right input image\n"
+        "    -l\t--limage={filename}\t" "path of left input image\n"
+        "    -w\t--width={value}\t\t"   "width of input images\n"
+        "    -h\t--height={value}\t"    "hight of input images\n"
+        "    -s\t--stride={value}\t"    "stride of input images\n"
+        "    -c\t--calib={filename}\t"  "calibration parameter file\n"
+        "    -u\t--undist={0|1}\t"		"are undistortion&rectification needed?"
+        "\t\t\t\t"						"0: input image pairs are undistorted and rectified, if stereo config file is provided, the parameters are rectified stereo parameters"
+        "\t\t\t\t"						"1: input image pairs should be undistorted or rectified with config file, stereo config file must be provided"
+        "    -f\t--fps={value}\t\t"     "desired fps\n"
+        "    -o\t--format={0|1|2|3}\t"  "output format\n"
         "\t\t\t\t"                      "  0: disparity, 1: depth, 2: point cloud\n"
-        "\t\t\t\t"                      "  3: point cloud fusion with left image\n"
+        "\t\t\t\t"                      "  3: point cloud fused with left image\n"
+		"\t\t\t\t"                      "  4: point cloud and disparity image\n"
+		"\t\t\t\t"                      "  5: point cloud fused with left image and disparity image\n"
         "    -v\t--verbose\t\t"         "verbose mode\n"
-		"    -H\t--help\t\t\t"          "print this usage message\n\n";
+        "    -H\t--help\t\t\t"          "print this usage message\n\n";
 
     printf("%s", text);
-    printf ("Example: %s -l left.png -r right.png -m 0 -d 1 -D 32 -c stereo_cal.yml -o 3\n", exename.c_str());
+    printf("Example: %s -l left.png -r right.png -m 0 -d 1 -D 32 -c stereo_cal.yml -o 3\n", exename.c_str());
 
 #ifdef WIN32
 	printf(
@@ -134,9 +134,9 @@ static struct {
     {"fps",         'f', 'y'},
     {"format",      'o', 'y'},
     {"verbose",     'v', 'n'},
-	{"undist",      'u', 'y'},
+    {"undist",      'u', 'y'},
     {"help",        'h', 'n'},
-    {0, 0}
+    {"", 0, 0}
 };
 /*----------------------------------------------------------------------------*/
 int         arg_find_command(char short_symbol, string & cmd_string, char & option)
@@ -253,8 +253,8 @@ int     parseCommandLine(int argc, const char* argv[])
     int arg_index = 1;
     int arg_count = 0;
 
-	int c, mode, loops;
-	bool strideNotSet=true;
+    int c, mode, loops;
+    bool strideNotSet=true;
 
     while(arg_index < argc)
     {
@@ -265,9 +265,9 @@ int     parseCommandLine(int argc, const char* argv[])
             cout << "[ARG] code = " << c << ", cmdstring = '" << cmdstring << "', optstring = '" << optstring << "'" << endl;
         }
 
-		switch (c) {
+        switch (c) {
             case 'm':
-                gRunningMode = (rvDFSMode)std::stoi(optstring);
+                gRunningMode = std::stoi(optstring);
                 break;
             case 'n':
                 gNumLoops = std::stoi(optstring);
@@ -309,9 +309,6 @@ int     parseCommandLine(int argc, const char* argv[])
                 if(gOutputFormat > 5)
                     gOutputFormat = 0;
                 break;
-            case 'R':
-                gDynamicRange = true;
-                break;
 			case 'u':
 				gDoRectification = std::stoi(optstring);
 				break;
@@ -328,62 +325,24 @@ int     parseCommandLine(int argc, const char* argv[])
                 printHelp(argv[0]);
                 exit(1);
                 break;
-		}
+        }
         arg_count++;
-	}
-
-	if (gLeftImage.empty())
-    {
-        cout << "Error : left image is not specified!" << endl;
-        printHelp(argv[0]);
-        exit(1);
     }
 
-	if (gStereoConfigFile.empty())
-		gDoRectification = false;
-
-	RV_DBG("leave parse Command Line");
-
-	return arg_count;
+    if (gStereoConfigFile.empty())
+        gDoRectification = false;
+        
+    return arg_count;
 }
 
-void saveDisparityMap(std::string& fullFolder, float* disparityFloat, int width, int height)
+
+void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
 {
-	//save original disparity image
-	cv::Mat disparityImageChar(height, width, CV_8UC1);
-	cv::Mat disparityImageFloat(height, width, CV_32FC1);
-	unsigned char* pDisparityChar = (unsigned char*)disparityImageChar.data;
-	for (int ii = 0; ii < width * height; ++ii)
-	{
-		pDisparityChar[ii] = static_cast<unsigned char>(round(disparityFloat[ii]));
-		if (gRunningMode == 2 && disparityFloat[ii] == 0.0)
-			disparityFloat[ii] = INFINITY;		//gRunningMode 2 doesn't set INFINITY for disparity map
-	}
-	cv::Mat disp;
-	disp = cv::Mat::zeros(height, width, CV_32FC1);
-	memcpy(disp.data, disparityFloat, sizeof(float) * height * width);
-	cv::imwrite(fullFolder + "/disparityOri.png", disp);
+    RV_INFO("Run C-style interface.");
 
-	//save colorized disparity image
-	double min;
-	double max;
-	cv::minMaxIdx(disparityImageChar, &min, &max);
-	double scale = 255. / (max - min);
-	disparityImageChar.convertTo(disparityImageChar, CV_8UC1, scale, -min * scale);
-	cv::Mat falseColorsMap;
-	cv::applyColorMap(disparityImageChar, falseColorsMap, cv::COLORMAP_JET);
-	cv::imwrite(fullFolder + "/disparity.png", falseColorsMap);
-}
+    assert(gNumRows > 0 && gNumCols > 0);
+    cv::Mat disparityMap = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
 
-void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
-{
-	std::cout << "Run C-style interface." << std::endl;
-
-	if (!disparityMap)
-	{
-		std::cout << "Input disparity_map is empty" << std::endl;
-		return;
-	}
     rvDFSParameter dfs_parameter;
     dfs_parameter.filterHeight = 8;
     dfs_parameter.filterWidth = 16;
@@ -391,133 +350,135 @@ void RunTestC(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, co
     dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
     dfs_parameter.doRectification = gDoRectification;
     dfs_parameter.doGpuRect = false;
-	//For dynamic disparity range settings
-	rvDFSDisparity dRange1,dRange2;
 
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
-	if (gRunningMode == rvDFSMode::RV_DFS_CVP)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_CVP;
-	}
-	else if (gRunningMode == rvDFSMode::RV_DFS_COVERAGE)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
-	}
-	else if (gRunningMode == rvDFSMode::RV_DFS_SPEED)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED;
-		if (dfs_parameter.doRectification)
-			dfs_parameter.doGpuRect = true;
-	}
-	else if (gRunningMode == rvDFSMode::RV_DFS_ACCURACY)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
-	}
-
-    if (gDynamicRange)
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    if (gRunningMode == 0)
     {
-        dRange1.minDisparity = gMinDisparity;
-		dRange1.numDisparityLevels = gLevelDisparity/2;
-		dRange2.minDisparity = gMinDisparity+dRange1.numDisparityLevels;
-		dRange2.numDisparityLevels = gLevelDisparity - gLevelDisparity/2;
+        dfs_mode = rvDFSMode::RV_DFS_CVP;
+    }
+    else if (gRunningMode == 1)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
+    }
+    else if (gRunningMode == 2)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_SPEED;
+        if (dfs_parameter.doRectification)
+            dfs_parameter.doGpuRect = true;
+    }
+    else if (gRunningMode == 3)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
     }
 
-	rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
-	if (dfs_handle == nullptr)
-		return;
-	rvStereoConfiguration rectified_stereo_parameter = rvDFS_GetRectifiedCameraParameter(dfs_handle);
+    rvDFS* dfs_handle = rvDFS_Initialize(dfs_mode, gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
+    if (dfs_handle == nullptr)
+        return;
+    rvStereoConfiguration rectified_stereo_parameter = rvDFS_GetRectifiedCameraParameter(dfs_handle);
 
-	uint8_t* pLImg, * pRImg;
-	pLImg = leftImage.ptr<uint8_t>();
-	if (gRightImage.empty())
-		pRImg = nullptr;
-	else
-		pRImg = rightImage.ptr<uint8_t>();
+    uint8_t* pLImg, * pRImg;
+    pLImg = leftImage.ptr<uint8_t>();
+    if (!gLeftImage.empty() && gRightImage.empty())
+    {
+        pRImg = nullptr;
+    }
+    else if(gLeftImage.empty() && !gRightImage.empty())
+    {
+       pLImg = rightImage.ptr<uint8_t>();
+       pRImg = rightImage.ptr<uint8_t>() + gNumRows * gStride;
+    }
+    else
+    {
+        pRImg = rightImage.ptr<uint8_t>();
+    }
 #ifdef PROFILING
-	auto start = std::chrono::high_resolution_clock::now();
-	if (gStereoConfigFile.empty())
-	{
-		for (int i = 0; i < gNumLoops; i++)
-		{
-			rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
-		}
-	}
-	else
-	{
-		for (int i = 0; i < gNumLoops; i++)
-		{
-			if(gOutputFormat==0)
-			{
-				if(!gDynamicRange)
-				{
-					rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						rvDFS_CalculateDisparityWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						rvDFS_CalculateDisparityWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else if(gOutputFormat==1)
-			{
-				if(!gDynamicRange)
-				{
-					rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						rvDFS_CalculateDepthWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						rvDFS_CalculateDepthWithNewDisparityRange(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else
-			{
-				RV_DBG("TBD, std::vector in C?");
-			}
-		}
-	}
-	auto finish = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> elapsed = finish - start;
-	RV_INFO("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
-	if (!gStereoConfigFile.empty())
-	{
-		PointCloudType pcl;
-		rvDFS_Depth2PointCloud(dfs_handle, disparityMap->ptr<float>(), &pcl);
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-	}
+    auto start = std::chrono::high_resolution_clock::now();
+    if (gStereoConfigFile.empty())
+    {
+        for (int i = 0; i < gNumLoops; i++)
+        {
+            rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap.ptr<float>());
+        }
+    }
+    else
+    {
+        for (int i = 0; i < gNumLoops; i++)
+        {
+            if(gOutputFormat==0)
+            {
+                rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap.ptr<float>());
+            }
+            else if(gOutputFormat==1)
+            {
+                rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap.ptr<float>());
+            }
+            else
+            {
+                printf("TBD, std::vector in C?\n");
+            }
+        }
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    printf("Elapsed time: %f ms\n", elapsed.count() * 1000 / gNumLoops);
+    if (!gStereoConfigFile.empty())
+    {
+        PointCloudType pcl;
+        rvDFS_Depth2PointCloud(dfs_handle, disparityMap.ptr<float>(), &pcl);
+        std::string ply_file = fullFolder + ("/point_cloud.ply");
+        dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap.cols, disparityMap.rows);
+    }
 #else // PROFILING
-	if (gStereoConfigFile.empty())
-	{
-		if (!rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>()))
-			return;
-	}
-	else
-	{
-		if (!rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap->ptr<float>()))
-			return;
-		PointCloudType pcl;
-		if (!rvDFS_Depth2PointCloud(dfs_handle, disparityMap->ptr<float>(), &pcl))
-			return;
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-	}
+    if (gStereoConfigFile.empty())
+    {
+        if (!rvDFS_CalculateDisparity(dfs_handle, pLImg, pRImg, disparityMap.ptr<float>()))
+            return;
+    }
+    else
+    {
+        if (!rvDFS_CalculateDepth(dfs_handle, pLImg, pRImg, disparityMap.ptr<float>()))
+            return;
+        PointCloudType pcl;
+        if (!rvDFS_Depth2PointCloud(dfs_handle, disparityMap.ptr<float>(), &pcl))
+            return;
+        std::string ply_file = fullFolder + ("/point_cloud.ply");
+        dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap.cols, disparityMap.rows);
+    }
 #endif // PROFILING
-	rvDFS_Deinitialize(dfs_handle);
+    rvDFS_Deinitialize(dfs_handle);
 }
 
-#ifdef DFS_CPP_STYLE_INTERFACE
-bool RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
-{
-	if (!disparityMap)
-	{
-		return false;
-	}
 
+bool runTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
+{
+    if (gStereoConfigFile.empty() && gDoRectification)
+        return false; //must provide calibration parameters if want DFS to do rectification
+
+    uint8_t* pLImg, * pRImg;
+    pLImg = leftImage.ptr<uint8_t>();
+    if (!gLeftImage.empty() && gRightImage.empty())
+    {
+        pRImg = nullptr;
+    }
+    else if(gLeftImage.empty() && !gRightImage.empty())
+    {
+       pLImg = rightImage.ptr<uint8_t>();
+       pRImg = pLImg + gNumRows * gStride;
+    }
+    else
+    {
+        pRImg = rightImage.ptr<uint8_t>();
+    }
+    assert(gNumRows > 0 && gNumCols > 0 && pRImg != NULL);
+
+    //prepare data for DFS results
+    PointCloudType pcl;
+    pcl.reserve(gNumCols * gNumRows * 3);
+    PointCloudColorType pclColor;
+    pclColor.reserve(gNumCols * gNumRows * 6);
+    cv::Mat disparityMap = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
+
+    //prepare DFS parameters
     rvDFSParameter dfs_parameter;
     dfs_parameter.filterHeight = 9;
     dfs_parameter.filterWidth = 15;
@@ -526,296 +487,108 @@ bool RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, 
     dfs_parameter.doRectification = gDoRectification;
     dfs_parameter.doGpuRect = false;
 
-	rvDFSDisparity dRange1,dRange2;		//For dynamic disparity range settings
-	PointCloudType pcl;
-	pcl.reserve(gNumCols*gNumRows*3);
-	PointCloudColorType pclColor;
-	pclColor.reserve(gNumCols*gNumRows*6);
-	rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
-	if (gRunningMode == 0)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_CVP;
-	}
-	else if (gRunningMode == 1)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
-	}
-	else if (gRunningMode == 2)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_SPEED;
-		if (gDoRectification)
-			dfs_parameter.doGpuRect = true;
-	}
-	else if (gRunningMode == 3)
-	{
-		dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
-	}
-
-	if (gDynamicRange)
+    //create DFS instance with the user specified mode
+    std::mutex myMutex;
+    myMutex.lock();
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    if (gRunningMode == 0)
+        dfs_mode = rvDFSMode::RV_DFS_CVP;
+    else if (gRunningMode == 1)
+        dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
+    else if (gRunningMode == 2)
     {
-        dRange1.minDisparity = gMinDisparity;
-		dRange1.numDisparityLevels = gLevelDisparity/2;
-		dRange2.minDisparity = gMinDisparity+dRange1.numDisparityLevels;
-		dRange2.numDisparityLevels = gLevelDisparity - gLevelDisparity/2;
+        dfs_mode = rvDFSMode::RV_DFS_SPEED;
+        if (gDoRectification)
+            dfs_parameter.doGpuRect = true;
+    }
+    else if (gRunningMode == 3)
+        dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
+    myMutex.unlock();
+    std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
+    if (dfs_base == nullptr)
+        return false;
+
+    //initialize the DFS instance with given parameters
+    if (dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter) != true)
+    {
+        RV_ERR("dfs failed to initialize");
+        return false;
     }
 
-	std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
-	if (dfs_base == nullptr)
-		return false;
+    //once initialized, user can use this API to get new intrinsics/extrinsics of rectified image pair without running DFS
+    rvStereoConfiguration rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < gNumLoops; i++)
+    {
+        if (gOutputFormat == 0)
+            dfs_base->calculateDisparity(pLImg, pRImg, disparityMap.ptr<float>());
+        else if (gOutputFormat == 1) // need depth image. "disparityMap" will be used here since it is "float" type
+            dfs_base->calculateDepth(pLImg, pRImg, disparityMap.ptr<float>());
+        else if (gOutputFormat == 2 || gOutputFormat == 4) // need point cloud 
+            dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
+        else // need point cloud fused with left image
+            dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "[INFO] Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops << std::endl;
 
-	dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
-	rvStereoConfiguration rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
-	uint8_t* pLImg, * pRImg;
-	pLImg = leftImage.ptr<uint8_t>();
-	if (gRightImage.empty())
-		pRImg = nullptr;
-	else
-		pRImg = rightImage.ptr<uint8_t>();
-	dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
-	dfs_base->deInitialize();
-	
-	dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter);
-	rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
-
-	auto start = std::chrono::high_resolution_clock::now();
-	if(gFPS>0)
-	{
-		auto durFrame = std::chrono::duration<double>(1.0/gFPS);
-		auto thres = std::chrono::duration<double>(0.000001);
-		auto tsPrev = start;
-		for (int i = 0; i < gNumLoops; i++)
-		{
-			if(gStereoConfigFile.empty() || gOutputFormat == 0)
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else if(gOutputFormat==1)
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else if(gOutputFormat==2)
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange1);
-					else
-						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange2);
-				}
-			}
-			else	//point cloud fusion with left image
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange1);
-					else
-						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange2);
-				}
-			}
-
-			auto ts = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double> dur = durFrame - (ts - tsPrev);
-			// RV_ERR("dur %f, thres %f", dur.count(),thres.count());
-			if(dur>thres)
-			{
-				std::this_thread::sleep_for(dur);
-			}
-			tsPrev = std::chrono::high_resolution_clock::now();
-		}
+    if(gOutputFormat == 0) //save disparity map (original and colorized)
+    {
+        //save original disparity image
+        cv::imwrite(fullFolder + "/disparityOri.png", disparityMap);
+        //generate and save colorized disparity image
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(disparityMap, imgPath);
 	}
-	else
+	else if (gOutputFormat == 1) //save depth map
 	{
-		for (int i = 0; i < gNumLoops; i++)
-		{
-			if (gStereoConfigFile.empty() || gOutputFormat == 0)
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						dfs_base->calculateDisparity(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else if (gOutputFormat == 1)
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>());
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange1);
-					else
-						dfs_base->calculateDepth(pLImg, pRImg, disparityMap->ptr<float>(),&dRange2);
-				}
-			}
-			else if (gOutputFormat == 2 || gOutputFormat == 4)	//point cloud
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange1);
-					else
-						dfs_base->calculatePointCloud(pLImg, pRImg, &pcl,&dRange2);
-				}
-			}
-			else	//point cloud fusion with left image
-			{
-				if(!gDynamicRange)
-				{
-					dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
-				}
-				else
-				{
-					if(i%2==0)
-						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange1);
-					else
-						dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor,&dRange2);
-				}
-			}
-		}
+		//save raw depth image, assume the unit is minimeter
+        std::string imgPath = fullFolder + ("/depth.png");
+        dfs_test_tool::saveDepthImage(disparityMap, imgPath);
+		//generate and save colorized depth image
+        imgPath = fullFolder + ("/depthColor.png");
+        dfs_test_tool::saveColorizedDepthImage(disparityMap, imgPath);
 	}
-	auto finish = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> elapsed = finish - start;
-	// RV_ERR("Elapsed time: %f ms", elapsed.count() * 1000 / gNumLoops);
-#ifdef GLOG_ENABLED
-	LOG(INFO) << "Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops;
-#else
-    cout << "[INFO] Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops;
-#endif
-	if (gStereoConfigFile.empty() || gOutputFormat == 0)		//save disparity map, original and false color images, as well as pfm format which is designed by middlebury
+	else if (gOutputFormat == 2) //save point cloud
 	{
-		saveDisparityMap(fullFolder, (float*)disparityMap->data, disparityMap->cols, disparityMap->rows);
+		//save point cloud		
+		dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+	}
+	else if (gOutputFormat == 3) //save fused point cloud
+	{
+		//save cloud point fused with gray-scale left image
+		dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud_color.ply", pclColor, disparityMap.cols, disparityMap.rows);
+	}
+	else if (gOutputFormat == 4) //save point cloud and disparity map
+	{
+		//save point cloud
+		dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+		//save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+		dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+	}
+	else if (gOutputFormat == 5) //save point cloud fused with left image and disparity map
+	{
+		//save fused point cloud
+		dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud.ply", pclColor, disparityMap.cols, disparityMap.rows);
+		//save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+        dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+	}
 
-#ifdef MIDDLEBERRY_EVAL
-		//save "pfm" image for evaluation
-		std::string pfmPath = fullFolder + "/disp0FCVF.pfm";
-#ifdef WIN32
-		WriteFilePFM((float*)disparityMap->data, disparityMap->cols, disparityMap->rows, pfmPath.c_str());
-#else
-		CShape sh(disparityMap->cols, disparityMap->rows, 1);
-		CFloatImage fdisp;
-		fdisp.ReAllocate(sh,(float*)disparityMap->data, false, sh.width*sizeof(float));
-		WriteFilePFM(fdisp, pfmPath.c_str(), (float)(1.0/255.0));
-#endif
-#endif // MIDDLEBURRY_EVAL
-	}
-	else if (gOutputFormat == 1)		//depth map, save rectified images as well
+    //if rectification is done by DFS, save rectified images
+	if (gDoRectification) 
 	{
 		cv::Mat rectLImg, rectRImg;
-		if (gRunningMode == 5)
-		{
-			rectLImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
-			rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
-		}
-		else
-		{
-			rectLImg = cv::Mat(gNumRows, gNumCols, CV_8UC1);
-			rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC1);
-		}
-
-		if(gDoRectification)
-		{
-			//save rectified images
-			dfs_base->getRectImages(rectLImg.ptr<uint8_t>(), rectRImg.ptr<uint8_t>());
-			cv::imwrite(fullFolder + "/rightRectifiedImage.png", rectRImg);
-			cv::imwrite(fullFolder + "/leftRectifiedImage.png", rectLImg);
-		}
-
-		//save raw depth image, assume the unit is centimeter
-		cv::Mat depthImage(disparityMap->size(), CV_16UC1);
-		unsigned short* pDepth = (unsigned short*)depthImage.data;
-		float* pFloatDisparity = disparityMap->ptr<float>();
-		for (int ii = 0; ii < disparityMap->cols * disparityMap->rows; ++ii)
-		{
-			pDepth[ii] = static_cast<unsigned short>(round(pFloatDisparity[ii]));
-		}
-		cv::imwrite(fullFolder + "/depth.png", depthImage);
-
-		//save colorized depth image
-		double min;
-		double max;
-		cv::minMaxIdx(depthImage, &min, &max);
-		double scale = 255. / (max - min);
-		depthImage.convertTo(depthImage, CV_8UC1, scale, -min * scale);
-		cv::Mat falseColorsMap;
-		cv::applyColorMap(depthImage, falseColorsMap, cv::COLORMAP_JET);
-		cv::imwrite(fullFolder + "/depthFalseColor.png", falseColorsMap);
-	}
-	else if (gOutputFormat == 2)		//point cloud
-	{
-		//save cloud point
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-	}
-	else if (gOutputFormat == 3)	//point cloud color
-	{
-		//save cloud point fusion with gray scale left image
-		std::string ply_file = fullFolder + ("/point_cloud_color.ply");
-		dfs_test_tool::writePLYPointcloudColor(ply_file, pclColor, disparityMap->cols, disparityMap->rows);
-	}
-	else if (gOutputFormat == 4)	//point cloud and disparity map
-	{
-		//save cloud point
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloud(ply_file, pcl, disparityMap->cols, disparityMap->rows);
-		//save disparity
-		dfs_base->getDisparity((float*)disparityMap->data);
-		saveDisparityMap(fullFolder, (float*)disparityMap->data, disparityMap->cols, disparityMap->rows);
-	}
-	else if (gOutputFormat == 5)	//point cloud fused with left image and disparity map
-	{
-		//save cloud point
-		std::string ply_file = fullFolder + ("/point_cloud.ply");
-		dfs_test_tool::writePLYPointcloudColor(ply_file, pclColor, disparityMap->cols, disparityMap->rows);
-		//save disparity
-		dfs_base->getDisparity((float*)disparityMap->data);
-		saveDisparityMap(fullFolder, (float*)disparityMap->data, disparityMap->cols, disparityMap->rows);
-	}
-
-	if (gDoRectification) //if rectification is done by DFS, save rectified images
-	{
-		cv::Mat rectLImg, rectRImg;
-		if (gRunningMode == 5)
+		if (gRunningMode == 3)
 		{
 			rectLImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
 			rectRImg = cv::Mat(gNumRows, gNumCols, CV_8UC3);
@@ -831,53 +604,435 @@ bool RunTestCpp(cv::Mat& leftImage, cv::Mat& rightImage, cv::Mat* disparityMap, 
 		cv::imwrite(fullFolder + "/leftRectifiedImage.png", rectLImg);
 	}
 
+    //finally de-initialize the DFS instance
+    dfs_base->deInitialize();
+
 	return true;
 }
-#endif // DFS_CPP_STYLE_INTERFACE
+
 
 void readRectifiedPara(rvStereoConfiguration& rectified_stereo_parameter, const std::string& file)
 {
-	//load parameter files
-	cv::FileStorage fs(file, cv::FileStorage::READ);
-	if (!fs.isOpened())
-		return; //xsh
-	cv::Mat P1;
-	fs["P1"] >> P1;
-	cv::Mat P2;
-	fs["P2"] >> P2;
-	//rectified_stereo_parameter
-	double disparity_to_depth_factor_ = P2.at<double>(0, 3);
-	double rectified_focal_length = P1.at<double>(0, 0);
-	//update rectified_stereo_parameter_
-	for (int k = 0; k < 2; ++k) {
-		rectified_stereo_parameter.camera[k].focalLength[0] = rectified_focal_length;
-		rectified_stereo_parameter.camera[k].focalLength[1] = rectified_focal_length;
-		rectified_stereo_parameter.camera[k].principalPoint[0] = P1.at<double>(0, 2);
-		rectified_stereo_parameter.camera[k].principalPoint[1] = P1.at<double>(1, 2);
-		for (int i = 0; i < 8; ++i) {
-			rectified_stereo_parameter.camera[k].distortion[i] = 0.0;
-		}
-	}
-	for (int i = 0; i < 3; ++i)
-	{
-		rectified_stereo_parameter.rotation[i] = 0.0;
-		rectified_stereo_parameter.translation[i] = 0.0;
-	}
-	if (rectified_focal_length != 0.0)
-		rectified_stereo_parameter.translation[0] = disparity_to_depth_factor_ / rectified_focal_length;
-	//xsh
+    //load parameter files
+    cv::FileStorage fs(file, cv::FileStorage::READ);
+    if (!fs.isOpened())
+        return; //xsh
+    cv::Mat P1;
+    fs["P1"] >> P1;
+    cv::Mat P2;
+    fs["P2"] >> P2;
+    //rectified_stereo_parameter
+    double disparity_to_depth_factor_ = P2.at<double>(0, 3);
+    double rectified_focal_length = P1.at<double>(0, 0);
+    //update rectified_stereo_parameter_
+    for (int k = 0; k < 2; ++k) {
+        rectified_stereo_parameter.camera[k].focalLength[0] = rectified_focal_length;
+        rectified_stereo_parameter.camera[k].focalLength[1] = rectified_focal_length;
+        rectified_stereo_parameter.camera[k].principalPoint[0] = P1.at<double>(0, 2);
+        rectified_stereo_parameter.camera[k].principalPoint[1] = P1.at<double>(1, 2);
+        for (int i = 0; i < 8; ++i) {
+            rectified_stereo_parameter.camera[k].distortion[i] = 0.0;
+        }
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        rectified_stereo_parameter.rotation[i] = 0.0;
+        rectified_stereo_parameter.translation[i] = 0.0;
+    }
+    if (rectified_focal_length != 0.0)
+        rectified_stereo_parameter.translation[0] = disparity_to_depth_factor_ / rectified_focal_length;
+}
+
+
+bool RunFixedFPSTest(cv::Mat& leftImage, cv::Mat& rightImage, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
+{
+    gRunningMode = 2; // only for GPU mode
+    if (gStereoConfigFile.empty() && gDoRectification)
+        return false; //must provide calibration parameters if want DFS to do rectification
+
+    assert(gFPS > 0);
+    assert(gNumRows > 0 && gNumCols > 0);
+    cv::Mat disparityMap = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
+
+    rvDFSParameter dfs_parameter;
+    dfs_parameter.filterHeight = 9;
+    dfs_parameter.filterWidth = 15;
+    dfs_parameter.disparity.minDisparity = gMinDisparity;
+    dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.doRectification = gDoRectification;
+    dfs_parameter.doGpuRect = false;
+
+    PointCloudType pcl;
+    pcl.reserve(gNumCols * gNumRows * 3);
+    PointCloudColorType pclColor;
+    pclColor.reserve(gNumCols * gNumRows * 6);
+
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    if (gDoRectification)
+        dfs_parameter.doGpuRect = true;
+    int outputFormat = gOutputFormat;
+
+    std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
+    if (dfs_base == nullptr)
+        return false;
+
+    uint8_t* pLImg, * pRImg;
+    pLImg = leftImage.ptr<uint8_t>();
+    if (!gLeftImage.empty() && gRightImage.empty())
+    {
+        pRImg = nullptr;
+    }
+    else if(gLeftImage.empty() && !gRightImage.empty())
+    {
+       pLImg = rightImage.ptr<uint8_t>();
+       pRImg = rightImage.ptr<uint8_t>() + gNumRows * gStride;
+    }
+    else
+    {
+        pRImg = rightImage.ptr<uint8_t>();
+    }
+    
+    if (dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter) != true)
+    {
+        RV_ERR("dfs failed to initialize");
+        return false;
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto durFrame = std::chrono::duration<double>(1.0 / gFPS);
+    auto thres = std::chrono::duration<double>(0.000001);
+    auto tsPrev = start;
+    for (int i = 0; i < gNumLoops; i++)
+    {
+        if (outputFormat == 0)
+            dfs_base->calculateDisparity(pLImg, pRImg, disparityMap.ptr<float>());
+        else if (outputFormat == 1)
+            dfs_base->calculateDepth(pLImg, pRImg, disparityMap.ptr<float>());
+        else if (outputFormat == 2)
+            dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
+        else	//point cloud fusion with left image
+            dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
+
+        auto ts = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> dur = durFrame - (ts - tsPrev);
+        if (dur > thres)
+            std::this_thread::sleep_for(dur);
+        tsPrev = std::chrono::high_resolution_clock::now();
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "[INFO] Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops << std::endl;
+
+    if (gOutputFormat == 0) //save disparity map (original and colorized)
+    {
+        //save original disparity image
+        cv::imwrite(fullFolder + "/disparityOri.png", disparityMap);
+        //generate and save colorized disparity image
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(disparityMap, imgPath);
+    }
+    else if (gOutputFormat == 1) //save depth map
+    {
+        //save raw depth image, assume the unit is minimeter
+        std::string imgPath = fullFolder + ("/depth.png");
+        dfs_test_tool::saveDepthImage(disparityMap, imgPath);
+		//generate and save colorized depth image
+        imgPath = fullFolder + ("/depthColor.png");
+        dfs_test_tool::saveColorizedDepthImage(disparityMap, imgPath);
+    }
+    else if (gOutputFormat == 2) //save point cloud
+    {
+        //save point cloud		
+        dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+    }
+    else if (gOutputFormat == 3) //save fused point cloud
+    {
+        //save cloud point fused with gray-scale left image
+        dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud_color.ply", pclColor, disparityMap.cols, disparityMap.rows);
+    }
+    else if (gOutputFormat == 4) //save point cloud and disparity map
+    {
+        //save point cloud
+        dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+        //save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+        dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+    }
+    else if (gOutputFormat == 5) //save point cloud fused with left image and disparity map
+    {
+        //save fused point cloud
+        dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud.ply", pclColor, disparityMap.cols, disparityMap.rows);
+        //save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+        dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+    }
+
+    dfs_base->deInitialize();
+
+    return true;
+}
+
+
+bool runDynamicRangeTest(cv::Mat& leftImage, cv::Mat& rightImage, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
+{
+    if (gStereoConfigFile.empty() && gDoRectification)
+        return false; //must provide calibration parameters if want DFS to do rectification
+
+    assert(gNumRows > 0 && gNumCols > 0);
+    cv::Mat disparityMap = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
+
+    rvDFSParameter dfs_parameter;
+    dfs_parameter.filterHeight = 9;
+    dfs_parameter.filterWidth = 15;
+    dfs_parameter.disparity.minDisparity = gMinDisparity;
+    dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.doRectification = gDoRectification;
+    dfs_parameter.doGpuRect = false;
+
+    rvDFSDisparity dRange1, dRange2;		//For dynamic disparity range settings
+    PointCloudType pcl;
+    pcl.reserve(gNumCols * gNumRows * 3);
+    PointCloudColorType pclColor;
+    pclColor.reserve(gNumCols * gNumRows * 6);
+
+    dRange1.minDisparity = gMinDisparity;
+    dRange1.numDisparityLevels = gLevelDisparity / 2;
+    dRange2.minDisparity = gMinDisparity + dRange1.numDisparityLevels;
+    dRange2.numDisparityLevels = gLevelDisparity - gLevelDisparity / 2;
+
+    std::mutex myMutex;
+    myMutex.lock();
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    if (gRunningMode == 0)
+        dfs_mode = rvDFSMode::RV_DFS_CVP;
+    else if (gRunningMode == 1)
+        dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
+    else if (gRunningMode == 2)
+    {
+        dfs_mode = rvDFSMode::RV_DFS_SPEED;
+        if (gDoRectification)
+            dfs_parameter.doGpuRect = true;
+    }
+    else if (gRunningMode == 3)
+        dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
+    int outputFormat = gOutputFormat;
+    myMutex.unlock();
+
+
+    std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
+    if (dfs_base == nullptr)
+        return false;
+
+    uint8_t* pLImg, * pRImg;
+    pLImg = leftImage.ptr<uint8_t>();
+    if (!gLeftImage.empty() && gRightImage.empty())
+    {
+        pRImg = nullptr;
+    }
+    else if(gLeftImage.empty() && !gRightImage.empty())
+    {
+       pLImg = rightImage.ptr<uint8_t>();
+       pRImg = rightImage.ptr<uint8_t>() + gNumRows * gStride;
+    }
+    else
+    {
+        pRImg = rightImage.ptr<uint8_t>();
+    }
+
+    rvStereoConfiguration rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
+    if (dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter) != true)
+    {
+        RV_ERR("dfs failed to initialize");
+        return false;
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < gNumLoops; i++)
+    {
+        if (outputFormat == 0)
+        {
+            if (i % 2 == 0)
+                dfs_base->calculateDisparity(pLImg, pRImg, disparityMap.ptr<float>(), &dRange1);
+            else
+                dfs_base->calculateDisparity(pLImg, pRImg, disparityMap.ptr<float>(), &dRange2);
+        }
+        else if (outputFormat == 1)
+        {
+            if (i % 2 == 0)
+                dfs_base->calculateDepth(pLImg, pRImg, disparityMap.ptr<float>(), &dRange1);
+            else
+                dfs_base->calculateDepth(pLImg, pRImg, disparityMap.ptr<float>(), &dRange2);
+        }
+        else if (outputFormat == 2)
+        {
+            if (i % 2 == 0)
+                dfs_base->calculatePointCloud(pLImg, pRImg, &pcl, &dRange1);
+            else
+                dfs_base->calculatePointCloud(pLImg, pRImg, &pcl, &dRange2);
+        }
+        else
+        {
+            if (i % 2 == 0)
+                dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor, &dRange1);
+            else
+                dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor, &dRange2);
+        }
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "[INFO] Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops << std::endl;
+
+    if (gOutputFormat == 0) //save disparity map (original and colorized)
+    {
+        //save original disparity image
+        cv::imwrite(fullFolder + "/disparityOri.png", disparityMap);
+        //generate and save colorized disparity image
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(disparityMap, imgPath);
+    }
+    else if (gOutputFormat == 1) //save depth map
+    {
+        //save raw depth image, assume the unit is minimeter
+        std::string imgPath = fullFolder + ("/depth.png");
+        dfs_test_tool::saveDepthImage(disparityMap, imgPath);
+		//generate and save colorized depth image
+        imgPath = fullFolder + ("/depthColor.png");
+        dfs_test_tool::saveColorizedDepthImage(disparityMap, imgPath);
+    }
+    else if (gOutputFormat == 2) //save point cloud
+    {
+        //save point cloud		
+        dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+    }
+    else if (gOutputFormat == 3) //save fused point cloud
+    {
+        //save cloud point fused with gray-scale left image
+        dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud_color.ply", pclColor, disparityMap.cols, disparityMap.rows);
+    }
+    else if (gOutputFormat == 4) //save point cloud and disparity map
+    {
+        //save point cloud
+        dfs_test_tool::writePLYPointcloud(fullFolder + "/point_cloud.ply", pcl, disparityMap.cols, disparityMap.rows);
+        //save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+        dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+    }
+    else if (gOutputFormat == 5) //save point cloud fused with left image and disparity map
+    {
+        //save fused point cloud
+        dfs_test_tool::writePLYPointcloudColor(fullFolder + "/point_cloud.ply", pclColor, disparityMap.cols, disparityMap.rows);
+        //save disparity
+        cv::Mat tempMap = cv::Mat::zeros(disparityMap.rows, disparityMap.cols, CV_32FC1);
+        dfs_base->getDisparity((float*)tempMap.data);
+        cv::imwrite(fullFolder + "/disparityOri.png", tempMap);
+        std::string imgPath = fullFolder + ("/disparity.png");
+        dfs_test_tool::saveColorizedDisparity(tempMap, imgPath);
+    }
+
+    dfs_base->deInitialize();
+
+    return true;
+}
+
+
+bool runMiddleburyTest(cv::Mat& leftImage, cv::Mat& rightImage, const rvStereoConfiguration& stereo_parameter, std::string fullFolder)
+{
+#ifdef MIDDLEBERRY_EVAL
+    gOutputFormat = 0; // for Middlebury, only need to generate disparity image
+
+    uint8_t* pLImg = leftImage.ptr<uint8_t>();
+    uint8_t* pRImg = rightImage.ptr<uint8_t>();
+    assert(gNumRows > 0 && gNumCols > 0 && pLImg != NULL && pRImg != NULL);
+
+    //prepare data for DFS results
+    cv::Mat disparityMap = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
+
+    //prepare DFS parameters
+    rvDFSParameter dfs_parameter;
+    dfs_parameter.filterHeight = 9;
+    dfs_parameter.filterWidth = 15;
+    dfs_parameter.disparity.minDisparity = gMinDisparity;
+    dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
+    dfs_parameter.doRectification = false; // Middlebury images are already rectified
+    dfs_parameter.doGpuRect = false;
+
+    //create DFS instance with the user specified mode
+    std::mutex myMutex;
+    myMutex.lock();
+    rvDFSMode dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    if (gRunningMode == 0)
+        dfs_mode = rvDFSMode::RV_DFS_CVP;
+    else if (gRunningMode == 1)
+        dfs_mode = rvDFSMode::RV_DFS_COVERAGE;
+    else if (gRunningMode == 2)
+        dfs_mode = rvDFSMode::RV_DFS_SPEED;
+    else if (gRunningMode == 3)
+        dfs_mode = rvDFSMode::RV_DFS_ACCURACY;
+    myMutex.unlock();
+    std::shared_ptr<rv_dfs::DFSBase> dfs_base = rv_dfs::CreateDFSbase(dfs_mode);
+    if (dfs_base == nullptr)
+        return false;
+
+    //initialize the DFS instance with given parameters
+    if (dfs_base->initialize(gNumCols, gNumRows, gStride, dfs_parameter, stereo_parameter) != true)
+    {
+        RV_ERR("dfs failed to initialize");
+        return false;
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < gNumLoops; i++)
+    {
+        if (gOutputFormat == 0)
+            dfs_base->calculateDisparity(pLImg, pRImg, disparityMap.ptr<float>());
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    cout << "[INFO] Elapsed time (ms) is:   " << elapsed.count() * 1000 / gNumLoops << std::endl;
+
+    if (gOutputFormat == 0)		//save disparity map, original and false color images, as well as pfm format which is designed by middlebury
+    {
+        //save original disparity image
+        cv::imwrite(fullFolder + "/disparityOri.png", disparityMap);
+        //generate and save colorized disparity image
+        dfs_test_tool::saveColorizedDisparity(disparityMap, fullFolder + "/disparity.png");
+
+        //save "pfm" image for evaluation
+        std::string pfmPath = fullFolder + "/disp0FCVF.pfm";
+#ifdef WIN32
+        WriteFilePFM((float*)disparityMap.data, disparityMap.cols, disparityMap.rows, pfmPath.c_str());
+#else
+        CShape sh(disparityMap.cols, disparityMap.rows, 1);
+        CFloatImage fdisp;
+        fdisp.ReAllocate(sh, (float*)disparityMap.data, false, sh.width * sizeof(float));
+        WriteFilePFM(fdisp, pfmPath.c_str(), (float)(1.0 / 255.0));
+#endif
+    }    
+
+    //finally de-initialize the DFS instance
+    dfs_base->deInitialize();
+#endif
+
+    return true;
 }
 
 
 int main(int argc, const char* argv[])
-{
-	int s;
-	
+{	
 	if (parseCommandLine(argc, argv) <= 0)
 	{
 	    printHelp(argv[0]);
         return 1;
-	}
+    }
 
 	rvStereoConfiguration stereo_parameter;
 	if (!gStereoConfigFile.empty())
@@ -893,48 +1048,42 @@ int main(int argc, const char* argv[])
 	}
 	else 
 	{
-		if (gRightImage.empty())
-		{
-			dfs_test_tool::readImage(gLeftImage.c_str(), leftImage, &gNumCols, &gNumRows, &gStride, true);
-		}
+        std::string fullFolder = gLeftImage.c_str();
+        int s = fullFolder.find_last_of("\\");
+		if (s < 0)
+			s = fullFolder.find_last_of("/");
+		if (s <= 0)
+			fullFolder = ".";
+		else
+			fullFolder.resize(s);
+
+        if (gRightImage.empty() && !gLeftImage.empty())
+        {
+            dfs_test_tool::readImage(gLeftImage.c_str(), leftImage, &gNumCols, &gNumRows, &gStride, true);
+        }
+        else if(gLeftImage.empty() && !gRightImage.empty())
+        {
+            //this is a top down image, so total height is gNumRows*2
+            int inputHeight = gNumRows*2;
+            dfs_test_tool::readImage(gRightImage.c_str(), rightImage, &gNumCols, &inputHeight, &gStride, false);
+        }
 		else
 		{
 			dfs_test_tool::readImage(gLeftImage.c_str(), leftImage, &gNumCols, &gNumRows, &gStride, false);
 			dfs_test_tool::readImage(gRightImage.c_str(), rightImage, &gNumCols, &gNumRows, &gStride, false);
-		}
-
-		cv::Mat disp;
-		disp = cv::Mat::zeros(gNumRows, gNumCols, CV_32FC1);
-
-		// cv::Mat imgDisparity8U = cv::Mat(gNumRows, gNumCols, CV_8UC1);
-	        // calDispWithSGBM(leftImage, rightImage, imgDisparity8U, gLevelDisparity, gNumLoops);
-
-		std::string fullFolder = gLeftImage.c_str();
-		s = fullFolder.find_last_of("\\");
-		if (s < 0)
-		{
-			s = fullFolder.find_last_of("/");
-		}
-		if (s <= 0)
-		{
-			fullFolder = ".";
-		}
-		else
-		{
-			fullFolder.resize(s);
-		}
+		}		
 
 #ifdef DFS_CPP_STYLE_INTERFACE
-		if (!RunTestCpp(leftImage, rightImage, &disp, stereo_parameter, fullFolder))
-                {
-			cout << "[ERROR] '" << "Error in processing current image pair!";
+		if (!runTestCpp(leftImage, rightImage, stereo_parameter, fullFolder))
+        {
+			RV_ERR("Error in processing current image pair!");
 		}
 #else
-		RunTestC(leftImage, rightImage, &disp, stereo_parameter, fullFolder);
+        RunTestC(leftImage, rightImage, stereo_parameter, fullFolder);
 #endif
 	}
 
-    cout << "[INFO] '" << gLeftImage << "' finished!" << endl;
+    RV_INFO("%s finished!",gLeftImage.c_str());
 
-	return 0;
+    return 0;
 }

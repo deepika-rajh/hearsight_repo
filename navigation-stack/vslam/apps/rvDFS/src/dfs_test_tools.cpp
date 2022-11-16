@@ -4,10 +4,7 @@ Copyright (c) 2021 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
-
-
 #include "dfs_test_tools.h"
-
 #include <cmath>
 #include <vector>
 #include <iostream>
@@ -15,7 +12,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <iomanip>
 #include "rvLog.h"
 
-#include <opencv2/opencv.hpp>
 #include <opencv2/calib3d.hpp>
 
 #include <boost/filesystem.hpp>
@@ -65,14 +61,16 @@ namespace dfs_test_tool
 		}
 	}
 
-	// Translation should be millimeter
-	rvStereoConfiguration ocvImportStereoCalData(const std::string &file)
+	//Translation should be millimeter
+	rvStereoConfiguration ocvImportStereoCalData(const std::string& file)
 	{
 		rvStereoConfiguration dfs_parameter;
-		// load parameter files
+		//load parameter files
 		cv::FileStorage fs(file, cv::FileStorage::READ);
 		if (!fs.isOpened())
+		{ 
 			return rvStereoConfiguration();
+		}
 
 		cv::Mat camera_mat_left;
 		fs["Camera_Matrix1"] >> camera_mat_left;
@@ -184,10 +182,65 @@ namespace dfs_test_tool
 		return dfs_parameter;
 	}
 
-	// Translation should be millimeter
-	rvStereoConfiguration importStereoCalData(const std::string &file)
+	//Translation should be millimeter
+	rvStereoConfiguration importStereoCalData(const std::string& file)
 	{
 		return ocvImportStereoCalData(file);
+	}
+
+	void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat& imgDisparity8U, int numLoops, int minDisp, int levelDisparity)
+	{
+		cv::Size imgSize = imgL.size();
+		cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(1, 16, 3);
+		sgbm->setPreFilterCap(63);
+		int SADWindowSize = 9;
+		int sgbmWinSize = SADWindowSize > 0 ? SADWindowSize : 3;
+		sgbm->setBlockSize(sgbmWinSize);
+
+		int cn = imgL.channels();
+		sgbm->setP1(8 * cn * sgbmWinSize * sgbmWinSize);
+		sgbm->setP2(32 * cn * sgbmWinSize * sgbmWinSize);
+		sgbm->setMinDisparity(minDisp);
+		sgbm->setNumDisparities(levelDisparity);
+		sgbm->setUniquenessRatio(10);
+		sgbm->setSpeckleWindowSize(100);
+		sgbm->setSpeckleRange(32);
+		sgbm->setDisp12MaxDiff(1);
+
+		int alg = cv::StereoSGBM::MODE_SGBM;
+		if (alg == cv::StereoSGBM::MODE_HH)
+			sgbm->setMode(cv::StereoSGBM::MODE_HH);
+		else if (alg == cv::StereoSGBM::MODE_SGBM)
+			sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
+		else if (alg == cv::StereoSGBM::MODE_SGBM_3WAY)
+			sgbm->setMode(cv::StereoSGBM::MODE_SGBM_3WAY);
+
+		cv::Mat imgDisparity16S = cv::Mat(imgL.rows, imgL.cols, CV_16S);
+	#ifdef PROFILING
+		auto start = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < numLoops; i++)
+		{
+			sgbm->compute(imgL, imgR, imgDisparity16S);
+		}
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+
+		RV_INFO("SGBM Elapsed time: %f ms", elapsed.count() * 1000 / numLoops);
+	#else
+		sgbm->compute(imgL, imgR, imgDisparity16S);
+	#endif
+	#ifdef MIDDLEBERRY_EVAL
+		cv::imwrite("disparitySGBM16S.bmp", imgDisparity16S);
+		imgDisparity16S.convertTo(imgDisparity8U, CV_32F, 255 / (255 * 16.));
+	#ifdef WIN32
+		WriteFilePFM((float*)imgDisparity8U.data, imgDisparity8U.cols, imgDisparity8U.rows, "disp0SGBM32F.pfm");
+	#else
+		CShape sh(imgDisparity8U.cols, imgDisparity8U.rows, 1);
+		CFloatImage fdisp;
+		fdisp.ReAllocate(sh, (float*)imgDisparity8U.data, false, sh.width * sizeof(float));
+		WriteFilePFM(fdisp, "disp0SGBM32F.pfm", (float)(1.0 / 255.0));
+	#endif
+	#endif // MIDDLEBERRY_EVAL
 	}
 
 	std::vector<stereoImagePath> iterateDir(const std::string &dir)
@@ -228,6 +281,7 @@ namespace dfs_test_tool
 								int len = filePath.find_first_of(".") - f_;
 								tempData.index = std::stoi(filePath.substr(f_, len));
 								boost::algorithm::replace_first(filePath, "_L", "_R");
+								RV_DBG("now filePath is %s",filePath.c_str());
 								if (!boost::filesystem::exists(filePath))
 								{
 									filePath = "";
@@ -284,11 +338,7 @@ namespace dfs_test_tool
 		cv::Mat disparityImageFloat(height, width, CV_32FC1);
 		unsigned char *pDisparityChar = (unsigned char *)disparityImageChar.data;
 		for (int ii = 0; ii < width * height; ++ii)
-		{
 			pDisparityChar[ii] = static_cast<unsigned char>(round(disparityFloat[ii]));
-			if (mode == 2 && disparityFloat[ii] == 0.0)
-				disparityFloat[ii] = INFINITY; // gRunningMode 2 doesn't set INFINITY for disparity map
-		}
 		cv::Mat disp;
 		disp = cv::Mat::zeros(height, width, CV_32FC1);
 		memcpy(disp.data, disparityFloat, sizeof(float) * height * width);
@@ -307,6 +357,58 @@ namespace dfs_test_tool
 		snprintf(fname, 256, "/%s_%d.png", mapName.c_str(), nameIdx);
 		cv::imwrite(fullFolder + fname, falseColorsMap);
 	}
+
+
+	void saveColorizedDisparity(cv::Mat& disparityFloat, std::string& fullPath)
+	{
+		//generate fixed-point disparity image
+		cv::Mat disparityImageChar(disparityFloat.size(), CV_8UC1);
+		unsigned char* pDisparityChar = (unsigned char*)disparityImageChar.data;
+		float* pDisparityFloat = (float*)disparityFloat.data;
+		for (int ii = 0; ii < disparityFloat.cols * disparityFloat.rows; ++ii)
+			pDisparityChar[ii] = static_cast<unsigned char>(round(pDisparityFloat[ii]));
+
+		//generate and save colorized disparity image
+		double min;
+		double max;
+		cv::minMaxIdx(disparityImageChar, &min, &max);
+		double scale = 255. / (max - min);
+		disparityImageChar.convertTo(disparityImageChar, CV_8UC1, scale, -min * scale);
+		cv::Mat colorsMap;
+		cv::applyColorMap(disparityImageChar, colorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullPath, colorsMap);
+	}
+
+
+	void saveDepthImage(cv::Mat& depthFloat, std::string& fullPath)
+	{
+		cv::Mat depthImage(depthFloat.size(), CV_16UC1);
+		unsigned short* pDepth = (unsigned short*)depthImage.data;
+		float* pFloatDisparity = depthFloat.ptr<float>();
+		for (int ii = 0; ii < depthFloat.cols * depthFloat.rows; ++ii)
+			pDepth[ii] = static_cast<unsigned short>(round(pFloatDisparity[ii]));
+		cv::imwrite(fullPath, depthImage);
+	}
+
+
+	void saveColorizedDepthImage(cv::Mat& depthFloat, std::string& fullPath)
+	{
+		cv::Mat depthImage(depthFloat.size(), CV_16UC1);
+		unsigned short* pDepth = (unsigned short*)depthImage.data;
+		float* pFloatDisparity = depthFloat.ptr<float>();
+		for (int ii = 0; ii < depthFloat.cols * depthFloat.rows; ++ii)
+			pDepth[ii] = static_cast<unsigned short>(round(pFloatDisparity[ii]));
+
+		double min;
+		double max;
+		cv::minMaxIdx(depthImage, &min, &max);
+		double scale = 255. / (max - min);
+		depthImage.convertTo(depthImage, CV_8UC1, scale, -min * scale);
+		cv::Mat colorsMap;
+		cv::applyColorMap(depthImage, colorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullPath, colorsMap);
+	}
+
 
 	void processFolder(std::string dirPath, int minDisp, int dispLevel, bool doRect, int mode, int outputFormat, rvStereoConfiguration stereo_parameter)
 	{
@@ -358,7 +460,7 @@ namespace dfs_test_tool
 		cv::Mat leftImage, rightImage;
 		std::vector<stereoImagePath> imgPath = iterateDir(dirPath);
 		uint8_t *pLImg, *pRImg;
-		std::cout << imgPath.size() << " image pairs \n";
+		RV_DBG("Find %d image pairs",imgPath.size());
 		for(auto t : imgPath)
 		{
 			std::string leftImagePath = t.leftImage;
@@ -410,13 +512,13 @@ namespace dfs_test_tool
 			{
 				dfs_base->calculateDisparity(pLImg, pRImg, disp.ptr<float>());
 				std::string name = "disparity";
-				saveMap(fullFolder, name, t.index, (float *)disp.data, disp.cols, disp.rows, mode);
+				saveMap(fullFolder, name, t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
 			}
 			else if (outputFormat == 1)
 			{
 				dfs_base->calculateDepth(pLImg, pRImg, disp.ptr<float>());
 				std::string name = "depth";
-				saveMap(fullFolder, name, t.index, (float *)disp.data, disp.cols, disp.rows, mode);
+				saveMap(fullFolder, name, t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
 			}
 			else if (outputFormat == 2)
 			{
