@@ -43,7 +43,7 @@ add_definitions(-DSIMULATION)
 add_executable( ${RV_VWSLAM_SIM} ${RV_VWSLAM_SIM_SRC} )
 
 target_link_libraries(${RV_VWSLAM_SIM}
-      rv mv3
+      rv mv1 mv3
       ${OpenCV_LIBS}
       pthread
       dl
