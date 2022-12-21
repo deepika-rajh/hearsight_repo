@@ -23,6 +23,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <time.h>
 
 #include "explorer.h"
+#include "opencv2/opencv.hpp"
 
 using std::placeholders::_1;
 explorer::Exploration * rvAMobj;
@@ -46,7 +47,7 @@ public:
         //s2:call the main function
         this->turtle_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/commands/velocity", 10);
         this->goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/goal_pose", 10);
-        this->isProcessedRotate();
+        //this->isProcessedRotate();
 
         //s3: subscription the map and pose
         tfbuffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
@@ -97,6 +98,46 @@ private:
 
         sleep(3); //10
         return true;
+    }
+
+    void mapSaver(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
+    {
+        FILE * mapmeta = fopen("/data/auto-explore/map.yaml", "wb");
+
+        fprintf(mapmeta, "image: /data/auto-explore/map.pgm\n");
+        fprintf(mapmeta, "mode: trinary\n");
+        fprintf(mapmeta, "resolution: %f\n", map->info.resolution);
+        fprintf(mapmeta, "origin: [%f, %f, %f]\n", map->info.origin.position.x, map->info.origin.position.y, map->info.origin.position.z);
+        fprintf(mapmeta, "occupied_thresh: 0.65\n");
+        fprintf(mapmeta, "free_thresh: 0.25\n");
+        fprintf(mapmeta, "negate: 0\n");
+        fclose(mapmeta);
+
+        cv::Mat mapSaver1(map->info.height, map->info.width, CV_8UC1);
+        memcpy(mapSaver1.data, &(map->data[0]), sizeof(unsigned char)*map->info.height*map->info.width);
+        imwrite("/data/auto-explore/map.png", mapSaver1);
+
+        cv::Mat mapSaver(map->info.height, map->info.width, CV_8UC1);
+        memset(mapSaver.data, 205, sizeof(unsigned char)*map->info.height*map->info.width);
+
+        for(int row = 0; row < (int)map->info.height; row++)
+        {
+            for(int col = 0; col < (int)map->info.width; col++)
+            {
+                unsigned char originMapValue = (unsigned char)map->data[row * map->info.width + col];
+                if(originMapValue == 0) // FREE
+                    mapSaver.at<unsigned char>(row, col) = 254;
+                else if(originMapValue == 100) // OCCUPIED
+                    mapSaver.at<unsigned char>(row, col) = 0;
+                else if(originMapValue == 255) // UNKNOWN
+                    mapSaver.at<unsigned char>(row, col) = 205;
+                else
+                    RCLCPP_INFO(this->get_logger(), "No such map value. %d \n", originMapValue);
+            }
+        }
+
+        imwrite("/data/auto-explore/map.pgm", mapSaver);
+        RCLCPP_INFO(this->get_logger(), "Finish saving map in /data/auto-explore\n");
     }
 
     void topic_map_callback(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
@@ -169,6 +210,7 @@ private:
                 printf("AE start time is %d, end time is %d, duration time is %d\n", (int)aeBegin, (int)aeEnd, (int)(aeEnd-aeBegin));
 
                 RCLCPP_INFO(this->get_logger(), "The original pose as final goal is sent. Exploration stopped.\n");
+                mapSaver(map);
                 break;
 
             case ROTATE:
