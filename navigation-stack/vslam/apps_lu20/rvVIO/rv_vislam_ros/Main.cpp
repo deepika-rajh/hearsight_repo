@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -115,7 +115,7 @@ int main( int argc, char** argv )
 
    //start VSLAM system
    std::string sensorSetting, algSetting;
-   sensorSetting = argv[1];
+   sensorSetting = root;
    sensorSetting += "/Configuration/vslam.cfg";
    algSetting = sensorSetting;
    

@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2019-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -128,14 +128,13 @@ extern "C"
       Polynomial4,
       Polynomial5,
       RationalModel8,
-      FisheyeModel4,
-      InvalidModel
+      FisheyeModel4
    } rvDistortionModel;
 
    /************************************************************************//**
    @detailed
       Camera calibration parameters.  This information could come from any
-      calibration procedure including the CAC feature within this library.
+      calibration procedure.
 
       The pixel coordinate space [u, v] has the origin [0, 0] in the upper-left
       image corner.  The u-axis runs towards right along the row in memory
@@ -167,7 +166,8 @@ extern "C"
       distortion[0] would be equivalent to k1 in OpenCV or the constant a in
       the fisheye paper, distortion[1] would be k2 or the constant b in the
       paper, and so on.
-   
+   @param distortionModel
+      Distortion model as descriped in rvDistortionModel
    ****************************************************************************/
    typedef struct
    {
@@ -219,8 +219,8 @@ extern "C"
       ****************************************************************************/
    typedef struct
    {
-      float32_t translation[3], rotation[3];  // Relative between cameras @Yanming add comments
-      rvCameraIntrinsic camera[2];        // Left/right camera calibrations
+      float32_t translation[3], rotation[3];  // Relative between cameras
+      rvCameraIntrinsic camera[2];            // Left/right camera calibrations
    } rvStereoCamera;
 
 
@@ -252,15 +252,17 @@ extern "C"
 
   /************************************************************************//**
    @detailed
-   Pose information in Euler-Translation form.
-   Euler angles in the Tait-Bryan ZYX intrinsic convention, unit is radian.
+      Pose information in Euler-Translation form.
+      Euler angles in the Tait-Bryan ZYX intrinsic convention, unit is radian.
+      For differences with rvPose6DET, refer to
+      https://en.wikipedia.org/wiki/Euler_angles#Tait%E2%80%93Bryan_angles
    @param translation[3]
-   Translation vector in use defined units.
+      Translation vector in meter.
    @param euler[3]
-   Euler angles in the Tait-Bryan ZYX intrinsic convention, unit is in radian.
-   \n euler[0] = rotation about x-axis. roll
-   \n euler[1] = rotation about y-axis. pitch
-   \n euler[2] = rotation about z-axis yaw.
+      Euler angles in the Tait-Bryan ZYX intrinsic convention, unit is in radian.
+      \n euler[0] = rotation about x-axis. roll
+      \n euler[1] = rotation about y-axis. pitch
+      \n euler[2] = rotation about z-axis yaw.
     ****************************************************************************/
    typedef struct
    {

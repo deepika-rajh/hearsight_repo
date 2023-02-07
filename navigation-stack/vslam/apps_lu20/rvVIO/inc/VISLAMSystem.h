@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -44,6 +44,24 @@ inline void mySleep(int x)
 #ifdef SIMULATION
 #include <condition_variable>
 #endif //SIMULATION
+
+
+class OutputRecorder
+{
+public:
+   OutputRecorder();
+
+   ~OutputRecorder();
+   void initialize(const char* path);
+   void write(int64_t timestamp, const rvVISLAMPose& pose);
+   void deinit();
+
+private:
+   FILE* vioFp;
+   FILE* vioFpTxt;
+   FILE* fullStateFp;
+
+};
 
 
 #ifndef IMU_SUPPORTED
@@ -100,8 +118,9 @@ public:
     static rvVIOHandle * vioPtr;
     static rvVISLAMMapPoint* pPoints;
     static int rvVIOPointsNum;
-    static FILE * vioFp;
-    static FILE* vioFpTxt;
+
+    static OutputRecorder recorder;
+
 #ifdef ROS_BASED
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_sub;
 #endif

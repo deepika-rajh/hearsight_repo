@@ -1,6 +1,6 @@
 ﻿/*****************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -30,10 +30,8 @@ queue_mt<sensor_hijack> hijackArray(BUF_SIZE);
 rvVIOHandle * VISLAMSystem::vioPtr = nullptr;
 rvVISLAMMapPoint* VISLAMSystem::pPoints = nullptr;
 int VISLAMSystem::rvVIOPointsNum = 0;
-FILE * VISLAMSystem::vioFp = nullptr;
-FILE* VISLAMSystem::vioFpTxt = nullptr;
 std::shared_ptr<VISLAMSystem> VISLAMSystem::t = nullptr;
-
+OutputRecorder VISLAMSystem::recorder;
 VISLAMSystem::SystemState VISLAMSystem::systemState = KSLEEPING;
 std::shared_ptr<Visualiser> VISLAMSystem::viz = nullptr;
 std::string VISLAMSystem::sensorPath = "";
@@ -67,55 +65,46 @@ void Euler2Quaternion( double roll, double pitch, double yaw, double quaternion[
 }
 
 
-//rotation matrix to quaternion
-cv::Mat Matrix2Quaternion(cv::Mat matrix)
-{
-    float qx, qy, qz, qw;
-
-    // 计算矩阵轨迹
-    float a[4][4] = { 0 };
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            a[i][j] = matrix.at<float>(i, j);
-
-    a[3][3] = 1;
-    // I removed + 1.0f; see discussion with Ethan
-    float trace = a[0][0] + a[1][1] + a[2][2];
-    if (trace > 0) {
-        // I changed M_EPSILON to 0
-        float s = 0.5f / sqrtf(trace + 1.0f);
-        qw = 0.25f / s;
-        qx = (a[2][1] - a[1][2]) * s;
-        qy = (a[0][2] - a[2][0]) * s;
-        qz = (a[1][0] - a[0][1]) * s;
-    }
-    else {
-        if (a[0][0] > a[1][1] && a[0][0] > a[2][2]) {
-            float s = 2.0f * sqrtf(1.0f + a[0][0] - a[1][1] - a[2][2]);
-            qw = (a[2][1] - a[1][2]) / s;
-            qx = 0.25f * s;
-            qy = (a[0][1] + a[1][0]) / s;
-            qz = (a[0][2] + a[2][0]) / s;
-        }
-        else if (a[1][1] > a[2][2]) {
-            float s = 2.0f * sqrtf(1.0f + a[1][1] - a[0][0] - a[2][2]);
-            qw = (a[0][2] - a[2][0]) / s;
-            qx = (a[0][1] + a[1][0]) / s;
-            qy = 0.25f * s;
-            qz = (a[1][2] + a[2][1]) / s;
-        }
-        else {
-            float s = 2.0f * sqrtf(1.0f + a[2][2] - a[0][0] - a[1][1]);
-            qw = (a[1][0] - a[0][1]) / s;
-            qx = (a[0][2] + a[2][0]) / s;
-            qy = (a[1][2] + a[2][1]) / s;
-            qz = 0.25f * s;
-        }
-    }
-
-    float q[] = { qw,qx,qy,qz };
-    //cout<< "\n quaternion:"<<cv::Mat(4,1,CV_32FC1,q).t()<<endl;
-    return cv::Mat(4, 1, CV_32FC1, q).clone();
+void Matrix2Quaternion( const float32_t a[3][4], float& qw, float& qx, float& qy, float& qz )
+{  
+   // I removed + 1.0f; see discussion with Ethan
+   float trace = a[0][0] + a[1][1] + a[2][2];
+   if( trace > 0 )
+   {
+      // I changed M_EPSILON to 0
+      float s = 0.5f / sqrtf( trace + 1.0f );
+      qw = 0.25f / s;
+      qx = (a[2][1] - a[1][2]) * s;
+      qy = (a[0][2] - a[2][0]) * s;
+      qz = (a[1][0] - a[0][1]) * s;
+   }
+   else
+   {
+      if( a[0][0] > a[1][1] && a[0][0] > a[2][2] )
+      {
+         float s = 2.0f * sqrtf( 1.0f + a[0][0] - a[1][1] - a[2][2] );
+         qw = (a[2][1] - a[1][2]) / s;
+         qx = 0.25f * s;
+         qy = (a[0][1] + a[1][0]) / s;
+         qz = (a[0][2] + a[2][0]) / s;
+      }
+      else if( a[1][1] > a[2][2] )
+      {
+         float s = 2.0f * sqrtf( 1.0f + a[1][1] - a[0][0] - a[2][2] );
+         qw = (a[0][2] - a[2][0]) / s;
+         qx = (a[0][1] + a[1][0]) / s;
+         qy = 0.25f * s;
+         qz = (a[1][2] + a[2][1]) / s;
+      }
+      else
+      {
+         float s = 2.0f * sqrtf( 1.0f + a[2][2] - a[0][0] - a[1][1] );
+         qw = (a[1][0] - a[0][1]) / s;
+         qx = (a[0][2] + a[2][0]) / s;
+         qy = (a[1][2] + a[2][1]) / s;
+         qz = 0.25f * s;
+      }
+   }
 }
 
 #ifdef ROS_BASED
@@ -140,17 +129,13 @@ void pub_camera_raw_pose(const rvVISLAMPose & pose)
   odom_msg->pose.pose.position.y = pose.bodyPose.matrix[1][3];
   odom_msg->pose.pose.position.z = pose.bodyPose.matrix[2][3];
 
-   cv::Mat rotMat(3, 3, CV_32FC1);
-   for (size_t i = 0; i < 3; i++)
-       for (size_t j = 0; j < 3; j++)
-           rotMat.at<float32_t>(i, j) = pose.bodyPose.matrix[i][j];
-   cv::Mat quaternionMat0(4, 1, CV_32FC1);
-   quaternionMat0= Matrix2Quaternion(rotMat);
+  float qw, qx, qy, qz;
+  Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
 
-  odom_msg->pose.pose.orientation.x =  quaternionMat0.at<float32_t>(1);
-  odom_msg->pose.pose.orientation.y =  quaternionMat0.at<float32_t>(2);
-  odom_msg->pose.pose.orientation.z =  quaternionMat0.at<float32_t>(3);
-  odom_msg->pose.pose.orientation.w =  quaternionMat0.at<float32_t>(0);
+  odom_msg->pose.pose.orientation.x =  qx;
+  odom_msg->pose.pose.orientation.y =  qy;
+  odom_msg->pose.pose.orientation.z =  qz;
+  odom_msg->pose.pose.orientation.w =  qw;
 
   odom_msg->twist.twist.linear.x  = 0;
   odom_msg->twist.twist.angular.z = 0;
@@ -170,17 +155,13 @@ void pub_robot_pose(const rvVISLAMPose& pose)
   odom_msg->pose.pose.position.y = pose.bodyPose.matrix[1][3];
   odom_msg->pose.pose.position.z = pose.bodyPose.matrix[2][3];
 
-   cv::Mat rotMat(3, 3, CV_32FC1);
-   for (size_t i = 0; i < 3; i++)
-       for (size_t j = 0; j < 3; j++)
-           rotMat.at<float32_t>(i, j) = pose.bodyPose.matrix[i][j];
-   cv::Mat quaternionMat0(4, 1, CV_32FC1);
-   quaternionMat0= Matrix2Quaternion(rotMat);
+  float qw, qx, qy, qz;
+  Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
 
-  odom_msg->pose.pose.orientation.x =  quaternionMat0.at<float32_t>(1);
-  odom_msg->pose.pose.orientation.y =  quaternionMat0.at<float32_t>(2);
-  odom_msg->pose.pose.orientation.z =  quaternionMat0.at<float32_t>(3);
-  odom_msg->pose.pose.orientation.w =  quaternionMat0.at<float32_t>(0);
+  odom_msg->pose.pose.orientation.x =  qx;
+  odom_msg->pose.pose.orientation.y =  qy;
+  odom_msg->pose.pose.orientation.z =  qz;
+  odom_msg->pose.pose.orientation.w =  qw;
 
   odom_msg->twist.twist.linear.x  = 0;
   odom_msg->twist.twist.angular.z = 0;
@@ -193,6 +174,63 @@ void VISLAMSystem::state_callbackROS(const std_msgs::msg::String::SharedPtr msg)
     state_callback(msg->data);
 }
 #endif
+
+OutputRecorder::OutputRecorder()
+{
+   vioFp = NULL;
+   vioFpTxt = NULL;
+   fullStateFp = NULL;
+}
+
+void OutputRecorder::initialize(const char* path)
+{
+   deinit();
+
+   std::string outputDir(path);
+   vioFp = fopen((outputDir + "vio_output" + ".csv").c_str(), "wt");
+   vioFpTxt = fopen((outputDir + "stamped_traj_estimate" + ".txt").c_str(), "wt");
+   fprintf(vioFpTxt, "# timestamp tx ty tz qx qy qz qw\n");
+   fullStateFp = fopen((outputDir + "fullState.csv").c_str(), "wt");
+   fprintf(fullStateFp, "%% timestampCam timestampIMU aBias[0] aBias[1] aBias[2] wBias[0] wBias[1] wBias[2]\n");
+}
+
+void OutputRecorder::deinit()
+{
+   if (vioFp)
+   {
+      fclose(vioFp);
+      vioFp = NULL;
+   }
+   if (vioFpTxt)
+   {
+      fclose(vioFpTxt);
+      vioFpTxt = NULL;
+   }
+   if (fullStateFp)
+   {
+      fclose(fullStateFp);
+      fullStateFp = NULL;
+   }
+}
+
+OutputRecorder::~OutputRecorder()
+{
+   deinit();
+}
+
+void OutputRecorder::write( int64_t timestamp, const rvVISLAMPose & pose)
+{
+   float qw, qx, qy, qz;
+   Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
+   fprintf(vioFp, "%" PRId64 " %f %f %f %f %f %f %f %d %d\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
+      qx, qy, qz, qw, pose.poseQuality, pose.errorCode);
+   fprintf(vioFpTxt, "%" PRId64 " %f %f %f %f %f %f %f\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
+      qx, qy, qz, qw);
+   fprintf(fullStateFp, "%" PRId64 " %" PRId64 " %f %f %f %f %f %f\n", timestamp, pose.time, pose.aBias[0], pose.aBias[1], pose.aBias[2],
+      pose.wBias[0], pose.wBias[1], pose.wBias[2]); 
+}
+
+
 /**********************   C APIs end   ************************************/
 
 VISLAMSystem::~VISLAMSystem()
@@ -201,12 +239,10 @@ VISLAMSystem::~VISLAMSystem()
 
 void VISLAMSystem::deinit()
 {
-
    if( vioPtr )
    {
       rvVIO_Deinitialize( vioPtr );
       delete [] pPoints;
-      fclose( vioFp );
    }
 
    inputCamera = nullptr;
@@ -225,7 +261,6 @@ VISLAMSystem::VISLAMSystem( std::shared_ptr<CameraInterface> & camera )
       inputCamera->addCallback(addImageToVslam);
       inputCamera->start();
       cameraConfiguration = inputCamera->getCameraConfiguration();
-      //inputCamera->stop();
    }
 
 #ifdef ROS_BASED
@@ -375,15 +410,14 @@ std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSet
       vioCfg.useLogCameraHeight = false;
       vioCfg.logCameraHeightBootstrap = -3.22f;
 
-      vioCfg.noInitWhenMoving = true;
+      vioCfg.noInitWhenMoving = false; // true;
       vioCfg.limitedIMUbWtrigger = 35.f;
 
       vioPtr = rvVIO_Initialize( &vioCfg );
       rvVIOPointsNum = 200;//100
       pPoints = new rvVISLAMMapPoint[rvVIOPointsNum];
-      vioFp = fopen( (outputDir + "vio_output" + ".csv").c_str(), "wt" );
-      vioFpTxt = fopen((outputDir + "stamped_traj_estimate" + ".txt").c_str(), "wt");
-      fprintf(vioFpTxt, "# timestamp tx ty tz qx qy qz qw\n");
+
+      recorder.initialize(outputDir.c_str());
 
 #ifdef IMU_SUPPORTED
       printf("IMU_SUPPORTED! \n");
@@ -500,47 +534,17 @@ void VISLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * ima
    {
       rvVIO_AddImage( vioPtr, timestamp, imageBuf );
       rvVISLAMPose pose = rvVIO_GetPose( vioPtr );
-      cv::Mat rotMat(3, 3, CV_32FC1);
-      for (size_t i = 0; i < 3; i++)
-          for (size_t j = 0; j < 3; j++)
-              rotMat.at<float32_t>(i, j) = pose.bodyPose.matrix[i][j];
-      cv::Mat quaternionMat0(4, 1, CV_32FC1);
-      quaternionMat0= Matrix2Quaternion(rotMat);
-      fprintf( vioFp, "%" PRId64 " %f %f %f %f %f %f %f %d %d\n", timestamp, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
-          quaternionMat0.at<float32_t>(1), quaternionMat0.at<float32_t>(2), quaternionMat0.at<float32_t>(3), quaternionMat0.at<float32_t>(0), pose.poseQuality, pose.errorCode);
-      fprintf(vioFpTxt, "%" PRId64 " %f %f %f %f %f %f %f\n", timestamp, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
-          quaternionMat0.at<float32_t>(1), quaternionMat0.at<float32_t>(2), quaternionMat0.at<float32_t>(3), quaternionMat0.at<float32_t>(0));
+      recorder.write(timestamp, pose);
       int pointNum = rvVIO_HasUpdatedPointCloud( vioPtr );
       rvVIO_GetPointCloud( vioPtr, pPoints, rvVIOPointsNum );
-      cv::Mat image( cameraConfiguration.stereo.camera[0].pixelHeight, cameraConfiguration.stereo.camera[0].pixelWidth, CV_8UC1);
-      memcpy( image.data, imageBuf, cameraConfiguration.stereo.camera[0].pixelHeight* cameraConfiguration.stereo.camera[0].pixelWidth );
-      cv::cvtColor( image, image, cv::COLOR_GRAY2BGR );
-      cv::Point2f imagePoint;
-      for( int i = 0; i < pointNum; i++ )
-      {
-         imagePoint.x = pPoints[i].pixLoc[0];
-         imagePoint.y = pPoints[i].pixLoc[1];
-         cv::circle( image, imagePoint, 4, cv::Scalar( 0, 255, 0 ) ); //green
-      }
 
-#ifdef WIN32
-      cv::imshow("VIO", image);
-      cv::waitKey(1);
-#endif // WIN32
-
-
-#ifndef WIN32
-       rvVWSLAMStatus status;
+      viz->ShowVIOPoints(imageBuf, pose.poseQuality, "VIO", pointNum, pPoints); 
 
 #ifdef ROS_BASED
        if (pose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT)
       {
           pub_camera_raw_pose(pose);
       }
-#endif
-       viz->ShowVIOPoints(imageBuf, pose.poseQuality, "VIO", pointNum, pPoints);
-       if (status._ObservationBuf)
-           delete status._ObservationBuf;
 #endif
    }
 }

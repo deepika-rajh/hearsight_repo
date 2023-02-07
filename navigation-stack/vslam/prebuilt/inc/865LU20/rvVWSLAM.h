@@ -1,6 +1,6 @@
 ﻿/*****************************************************************************
 @copyright
-Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2019-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -54,10 +54,16 @@ extern "C"
    //------------------------------------------------------------------------------
    /// @detailed
    ///     Initialize VWSLAM object.
-   /// @param root
-   ///     Pointer to VWSLAM configuration path.
+   /// @param algConfile
+   ///     Absolute path as text string to algorithm configuration file.
    /// @param output
-   ///     Pointer to VWSLAM output path.
+   ///     Absolute path as text string to VWSLAM output folder, mainly for output pose logging
+   /// @param cameraConfig
+   ///     Pointer to the camera configuration
+   /// @param wheelConfig
+   ///     Pointer to the wheel configuration
+   /// @param imuConfig
+   ///     Pointer to the IMU configuration
    /// @return
    ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
    //------------------------------------------------------------------------------
@@ -67,21 +73,29 @@ extern "C"
 
 
    //------------------------------------------------------------------------------
-  /// @detailed
-  ///     Reload an existing map and initialize VWSLAM object.
-  /// @param root
-  ///     Pointer to VWSLAM configuration.
-  /// @return
-  ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
-  //------------------------------------------------------------------------------
-   RV_API rvVWSLAM* rvVWSLAM_Reload( const char* sensorConfFile, const char * algConfile, const char* output,
+   /// @detailed
+   ///     Reload an existing map and initialize VWSLAM object.
+   /// @param root
+   ///     Absolute path as text string to algorithm configuration file.
+   /// @param output
+   ///     Absolute path as text string to VWSLAM output folder, mainly for output pose logging
+   /// @param cameraConfig
+   ///     Pointer to camera configuration
+   /// @param wheelConfig
+   ///     Pointer to the wheel configuration
+   /// @param imuConfig
+   ///     Pointer to the IMU configuration
+   /// @return
+   ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
+   //------------------------------------------------------------------------------
+   RV_API rvVWSLAM* rvVWSLAM_Reload( const char * algConfile, const char* output,
                                      const rvCameraParams * cameraConfig, const rvWheelConfiguration * wheelConfig,
                                      const rvIMUConfiguration* imuConfig, const rvTargetImage* targetImagePath);
 
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Run VWSLAM object.
+   ///     Start VWSLAM engine to work normally
    /// @param pObj
    ///     Pointer to VWSLAM object.
    //------------------------------------------------------------------------------
@@ -90,7 +104,7 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Stop VWSLAM object.
+   ///     Stop VWSLAM engine.
    /// @param pObj
    ///     Pointer to VWSLAM object.
    //------------------------------------------------------------------------------
@@ -99,7 +113,7 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Make VWSLAM object sleep
+   ///     Make the running VWSLAM engine sleepping, i.e. return directly without processing inputs
    /// @param pObj
    ///     Pointer to VWSLAM object.
    //------------------------------------------------------------------------------
@@ -108,7 +122,7 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Make VWSLAM object awake
+   ///     Awake the sleeping VWSLAM engine to process coming inputs 
    /// @param pObj
    ///     Pointer to VWSLAM object.
    //------------------------------------------------------------------------------
@@ -125,15 +139,15 @@ extern "C"
 
 
    //------------------------------------------------------------------------------
-/// @detailed
-///     Freeze VWSLAM maps.
-/// @param pObj
-///     Pointer to VWSLAM object.
-/// @param vslamFlag
-///     Whether to freeze vslam map.
-/// @param vmFlag
-///     Whether to freeze vm map.
-//------------------------------------------------------------------------------
+   /// @detailed
+   ///     Enable or disable the map updating of VWSLAM.
+   /// @param pObj
+   ///     Pointer to VWSLAM object.
+   /// @param vslamFlag
+   ///     Whether to freeze vslam map.
+   /// @param vmFlag
+   ///     Whether to freeze the grid map.
+   //------------------------------------------------------------------------------
    RV_API void rvVWSLAM_Freeze(rvVWSLAM* pObj, const bool vslamFlag);
 
 
@@ -149,7 +163,7 @@ extern "C"
    /// @param location
    ///     Location
    /// @param direction
-   ///     Direction, euler angle
+   ///     Direction in quaternion [x, y, z, w]
    /// @param timestamp
    ///     Timestamp in nanosecond
    //------------------------------------------------------------------------------
@@ -180,7 +194,8 @@ extern "C"
    /// @param timeStamp
    ///     Timestamp of camera frame.
    /// @param imageBuf
-   ///     Pointer to camera frame data.
+   ///     Pointer to camera gray images. For monocular or depth cameras, the buffer is filled with one gray image row by row
+   ///     For stereo camera, the buffer is filled with left image row by row first and then right image row by row.
    /// @param depthBuf 
    ///     Pointer to depth frame data.
    //------------------------------------------------------------------------------
@@ -189,7 +204,7 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get output pose from VWSLAM object.
+   ///     Get the latest baselink's pose estimated by VWSLAM object
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @return
@@ -200,29 +215,33 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get output pose from VWSLAM object.
+   ///     Get baselink's pose predicted by VWSLAM object of a given time, which is usually after the 
+   ///     last image frame passed to the object
    /// @param pObj
    ///     Pointer to VWSLAM object.
+   /// @param timestamp
+   ///     Timestamp of the pose
    /// @return
    ///     VWSLAM output pose
    //------------------------------------------------------------------------------
    RV_API rvVSLAMPose rvVWSLAM_PredictBaselinkPose( rvVWSLAM *pObj, int64_t timstamp );
 
+
    //------------------------------------------------------------------------------
-/// @detailed
-///     Get raw pose from VWSLAM object.
-/// @param pObj
-///     Pointer to VWSLAM object.
-/// @return
-///     VWSLAM output pose
-//------------------------------------------------------------------------------
+   /// @detailed
+   ///     Get camera pose of the last image frame's timestamp from VWSLAM object.
+   /// @param pObj
+   ///     Pointer to VWSLAM object.
+   /// @return
+   ///     VWSLAM output pose
+   //------------------------------------------------------------------------------
    RV_API rvVSLAMPose rvVWSLAM_GetVslamRawPose(rvVWSLAM *pObj);
 
    
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Run VWSLAM object.
+   ///     Get undistorted image of last input image from VWSLAM object.
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @param img
@@ -230,27 +249,27 @@ extern "C"
    /// @param imageWidth
    ///     Image width
    /// @param imageHeight
-   ///     ImageHeight
+   ///     Image height
    /// @return
-   ///     Return true if succeeded or false if failed
+   ///     Return true if succeeded or false otherwise
    //------------------------------------------------------------------------------
    RV_API bool rvVWSLAM_GetUndistortedImage( rvVWSLAM *pObj, uint8_t *img, int imageWidth, int imageHeight );
 
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get keyframe number of VWSLAM object.
+   ///     Get the number of keyframes in the map.
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @return
-   ///     Return number of keyframes if succeeded or 0 if failed
+   ///     Return number of keyframes if succeeded or 0 otherwise
    //------------------------------------------------------------------------------
    RV_API int rvVWSLAM_GetKeyframeNumber( rvVWSLAM *pObj );
 
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get observations of VWSLAM object.
+   ///     Get observations in the last image from from VWSLAM object.
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @param observationBuf
@@ -258,8 +277,8 @@ extern "C"
    /// @param bufLength
    ///     length of the buffer for observations
    /// @return
-   ///     Return only number of observations if bufflengt is 0 or observationBuf is null pointer
-   ///     else return the number of obsrvations and fill the buffer with observations
+   ///     Return only number of observations if bufflength is 0 or observationBuf is a null pointer
+   ///     otherwise return the number of obsrvations and fill the buffer with observations
    //------------------------------------------------------------------------------
    RV_API int rvVWSLAM_GetVWSLAMObservations( rvVWSLAM *pObj, RV_TrackedObservation *observationBuf, int bufLength );
 
@@ -279,13 +298,13 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Save a map to the given path.
+   ///     Save a map to the given folder.
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @param mapFolder
-   ///     The folder for saving map.
+   ///     Absolute path to the map folder. If this pointer is NULL, default folder in the engine is used.
    /// @param mapName
-   ///     Name of Map.
+   ///     Name of Map. If this pointer is NULL, default name in the engine is used.
    /// @return
    ///     True if the map is successfully saved. False otherwise.
    //------------------------------------------------------------------------------
@@ -303,7 +322,7 @@ extern "C"
 
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Get map to odom transformation
+   ///     Get map frame to odom frame transformation
    /// @param pObj
    ///     Pointer to VWSLAM object.
    /// @param pose

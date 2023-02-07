@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2019-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -45,7 +45,15 @@ extern "C"
    
    //------------------------------------------------------------------------------
    /// @detailed
-   ///     Tracking observation.
+   ///     Properties of a map point in current view
+   /// @param x
+   ///     x coordinate in pixel of the map point's projection on current image
+   /// @param y
+   ///     y coordinate in pixel of the map point's projection on current image
+   /// @param mapPointId
+   ///     ID of the map point
+   /// @param s
+   ///     Matching state of the map point
    //------------------------------------------------------------------------------
    typedef struct _rvTrackedObservation
    {
@@ -55,8 +63,8 @@ extern "C"
          MATCHING_FAILED                     ///< Matching failed
       } RV_OBSERVATION_STATE;
    
-      float x = 0.f; //In pixel
-      float y = 0.f; //in pixel
+      float x = 0.f;                         ///< In pixel
+      float y = 0.f;                         ///< in pixel
       int mapPointId = 0;
       RV_OBSERVATION_STATE s = RV_OBSERVATION_STATE::MATCHING_OK;
    } RV_TrackedObservation;
@@ -95,6 +103,14 @@ extern "C"
    //------------------------------------------------------------------------------
    /// @detailed
    ///     Pose information along with a quality indicator for VSLAM.
+   /// @param pose
+   ///     Robot pose in YRPT format
+   /// @param poseQuality
+   ///     Tracking state and quality
+   /// @param coordinateId
+   ///     ID of current map
+   /// @param timestampNs
+   ///     Timestamp in nanosecond
    //------------------------------------------------------------------------------
    typedef struct
    {

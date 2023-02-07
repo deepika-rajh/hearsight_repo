@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2019-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2019-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -13,8 +13,11 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 
 /************************************************************************//**
-   @detailed
-   Camera types
+@detailed
+   The camera type is limited to the following values :
+   -\b rvMonocular = Monocular camera\n
+   -\b rvGrayDepth = Depth camera with gray images\n
+   -\b rvStereo = Stereo camera\n
 ****************************************************************************/
 typedef enum
 {
@@ -26,7 +29,10 @@ typedef enum
 
 /************************************************************************//**
 @detailed
-Image format
+   The image format is limited to the following values:
+   -\b YUV_FORMAT = YUV format\n
+   -\b RAW_FORMAT = RAW format, 8 bits for each pixel\n
+   -\b NV12_FORMAT = NV12 format
 ****************************************************************************/
 enum rvImageFormat
 {
@@ -96,7 +102,7 @@ The type of camera.
 If the camera is monocular, only the stereo.camera[0] and stereoRec.camera[0] member are valid
 if the camera is a depth camera, its rgb camera is usually rectifed 
 and only the stereo.camera[0] is valid
-if the camera is a stereo camera, only the stereo and stereoRect are valid
+if the camera is a stereo camera, both the stereo and stereoRect are valid
 
 @param stereo
 Configurations for stereo camera
@@ -150,7 +156,14 @@ typedef struct
     rvPose6DRT baselinkInCamera; //also the cross-calibration matrix;
 } rvWheelConfiguration;
 
-
+/************************************************************************//**
+@detailed
+   Wheel configuration.
+@param wheelEnabled
+   if the wheel enabled. If not, input wheel encode messages are invalid.
+@param baselinkInCamera
+   Pose of the wheel encoder in the camera  coordinate
+****************************************************************************/
 typedef struct
 {
     std::string path;

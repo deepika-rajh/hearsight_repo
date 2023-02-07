@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -32,10 +32,7 @@ enum AppLoglevel {
    RV_LOG_MAX,
 };
 
-#ifndef _RV_LOG_LEVEL_
-#define _RV_LOG_LEVEL_ 0
-#endif
-
+extern int RV_LOG_LEVEL;
 extern bool RV_STDERR_LOGGING;
 extern FILE* RV_CONSOLE_STREAM;
 #if defined _WIN32
@@ -43,7 +40,7 @@ extern FILE* RV_CONSOLE_STREAM;
 
 //void __declspec(dllexport)   RVDebugLog( enum AppLoglevel level, const char* format, ... )
 //{
-//    if (_RV_LOG_LEVEL_ < (int)level)
+//    if (RV_LOG_LEVEL < (int)level)
 //        return;
 //    va_list args;
 //    va_start(args, format);
@@ -117,7 +114,7 @@ extern FILE* RV_CONSOLE_STREAM;
 } while (0)
 
 #define RV_ERR(fmt, ...) do { \
-   if (_RV_LOG_LEVEL_ >= RV_LOG_ERROR) { \
+   if (RV_LOG_LEVEL >= RV_LOG_ERROR) { \
       unsigned int sec, usec;\
       RV_TS(sec,usec);\
       syslog(LOG_ALERT, "(%d.%06d) %s:%d ERROR: " fmt, sec, usec, __FILE__, __LINE__, ##__VA_ARGS__ ); \
@@ -128,7 +125,7 @@ extern FILE* RV_CONSOLE_STREAM;
 } while (0)
 
 #define RV_KPI(fmt, ...) do { \
-   if (_RV_LOG_LEVEL_ >= RV_LOG_KPI) { \
+   if (RV_LOG_LEVEL >= RV_LOG_KPI) { \
       unsigned int sec, usec;\
       RV_TS(sec,usec);\
       syslog(LOG_ALERT, "(%d.%06d) KPI: " fmt, sec, usec, ##__VA_ARGS__ ); \
@@ -139,7 +136,7 @@ extern FILE* RV_CONSOLE_STREAM;
 } while (0)
 
 #define RV_INFO(fmt, ...) do { \
-   if (_RV_LOG_LEVEL_ >= RV_LOG_INFO) { \
+   if (RV_LOG_LEVEL >= RV_LOG_INFO) { \
       unsigned int sec, usec;\
       RV_TS(sec,usec);\
       syslog(LOG_ALERT, "(%d.%06d) %s:%d INFO: " fmt, sec, usec, __FILE__, __LINE__, ##__VA_ARGS__ ); \
@@ -150,7 +147,7 @@ extern FILE* RV_CONSOLE_STREAM;
 } while (0)
 
 #define RV_DBG(fmt, ...) do { \
-   if (_RV_LOG_LEVEL_ >= RV_LOG_DEBUG) { \
+   if (RV_LOG_LEVEL >= RV_LOG_DEBUG) { \
       unsigned int sec, usec;\
       RV_TS(sec,usec);\
       syslog(LOG_ALERT, "(%d.%06d) %s:%d DEBUG: " fmt, sec, usec, __FILE__, __LINE__, ##__VA_ARGS__ ); \

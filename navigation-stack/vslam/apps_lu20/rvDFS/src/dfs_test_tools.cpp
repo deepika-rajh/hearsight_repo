@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -11,7 +11,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <fstream>
 #include <iomanip>
 #include "rvLog.h"
-
+#include <chrono>
 #include <opencv2/calib3d.hpp>
 
 #include <boost/filesystem.hpp>
@@ -24,7 +24,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 namespace dfs_test_tool
 {
-	void writePLYPointcloud(const std::string &ply_file_path, const PointCloudType &pointCloud, size_t width, size_t height)
+	void writePLYPointCloud(const std::string &ply_file_path, const PointCloudType &pointCloud, size_t width, size_t height)
 	{
 		std::ofstream o_st(ply_file_path);
 		o_st << "ply" << std::endl;
@@ -40,7 +40,7 @@ namespace dfs_test_tool
 		}
 	}
 
-	void writePLYPointcloudColor(const std::string &ply_file_path, const PointCloudColorType &pointCloud, size_t width, size_t height)
+	void writePLYPointCloudColor(const std::string &ply_file_path, const PointCloudColorType &pointCloud, size_t width, size_t height)
 	{
 		std::ofstream o_st(ply_file_path);
 		o_st << "ply" << std::endl;
@@ -258,15 +258,16 @@ namespace dfs_test_tool
 					if (boost::filesystem::is_regular_file(x))
 					{
 						std::string filePath = x.path().string();
-						if (boost::algorithm::contains(filePath, "png")) // we only support png now
+						std::string fname = x.path().filename().string();
+						if (boost::algorithm::contains(fname, "png")) // we only support png now
 						{
-							if (boost::algorithm::contains(filePath, "_l"))
+							if (boost::algorithm::contains(fname, "_l"))
 							{
 								tempData.leftImage=filePath;
-								int f_ = filePath.find_first_of("_") + 1;
-								int len = filePath.find_last_of("_") - f_;
-								tempData.index = std::stoi(filePath.substr(f_, len));
-								boost::algorithm::replace_first(filePath, "_l", "_r");
+								int f_ = fname.find_last_of("_") + 1;
+								int len = fname.find_first_of(".") - f_;
+								tempData.index = std::stoi(fname.substr(f_, len));
+								boost::algorithm::replace_last(filePath, "_l", "_r"); // dir_path may include _l
 								if (!boost::filesystem::exists(filePath))
 								{
 									filePath = "";
@@ -274,13 +275,13 @@ namespace dfs_test_tool
 								tempData.rightImage = filePath;
 								imgPaths.push_back(tempData);
 							}
-							else if(boost::algorithm::contains(filePath, "_L"))
+							else if(boost::algorithm::contains(fname, "_L"))
 							{
 								tempData.leftImage=filePath;
-								int f_ = filePath.find_last_of("_") + 1;
-								int len = filePath.find_first_of(".") - f_;
-								tempData.index = std::stoi(filePath.substr(f_, len));
-								boost::algorithm::replace_first(filePath, "_L", "_R");
+								int f_ = fname.find_last_of("_") + 1;
+								int len = fname.find_first_of(".") - f_;
+								tempData.index = std::stoi(fname.substr(f_, len));
+								boost::algorithm::replace_last(filePath, "_L", "_R");
 								RV_DBG("now filePath is %s",filePath.c_str());
 								if (!boost::filesystem::exists(filePath))
 								{
@@ -331,23 +332,19 @@ namespace dfs_test_tool
 		RV_DBG("image %s size is %d x %d, stride is %d", imageName, *pWidth, *pHeight, *pStride);
 	}
 
-	void saveMap(std::string &fullFolder, std::string &mapName, int nameIdx, float *disparityFloat, int width, int height, int mode)
+	void saveMap(const std::string &fullFolder, const std::string &mapName, int nameIdx, float *disparityFloat, int width, int height, int mode)
 	{
 		// save original disparity image
 		cv::Mat disparityImageChar(height, width, CV_8UC1);
 		cv::Mat disparityImageFloat(height, width, CV_32FC1);
 		unsigned char *pDisparityChar = (unsigned char *)disparityImageChar.data;
 		for (int ii = 0; ii < width * height; ++ii)
-		{
 			pDisparityChar[ii] = static_cast<unsigned char>(round(disparityFloat[ii]));
-			if (mode == 2 && disparityFloat[ii] == 0.0)
-				disparityFloat[ii] = INFINITY; // gRunningMode 2 doesn't set INFINITY for disparity map
-		}
 		cv::Mat disp;
 		disp = cv::Mat::zeros(height, width, CV_32FC1);
 		memcpy(disp.data, disparityFloat, sizeof(float) * height * width);
 		char fname[256];
-		snprintf(fname, 256, "/%sOri_%d.png", mapName.c_str(), nameIdx);
+		snprintf(fname, 256,"/%sOri_%d.png", mapName.c_str(), nameIdx);
 		cv::imwrite(fullFolder + fname, disp);
 
 		// save colorized disparity image
@@ -358,9 +355,61 @@ namespace dfs_test_tool
 		disparityImageChar.convertTo(disparityImageChar, CV_8UC1, scale, -min * scale);
 		cv::Mat falseColorsMap;
 		cv::applyColorMap(disparityImageChar, falseColorsMap, cv::COLORMAP_JET);
-		snprintf(fname, 256, "/%s_%d.png", mapName.c_str(), nameIdx);
+		snprintf(fname, 256,"/%s_%d.png", mapName.c_str(), nameIdx);
 		cv::imwrite(fullFolder + fname, falseColorsMap);
 	}
+
+
+	void saveColorizedDisparity(cv::Mat& disparityFloat, const std::string& fullPath)
+	{
+		//generate fixed-point disparity image
+		cv::Mat disparityImageChar(disparityFloat.size(), CV_8UC1);
+		unsigned char* pDisparityChar = (unsigned char*)disparityImageChar.data;
+		float* pDisparityFloat = (float*)disparityFloat.data;
+		for (int ii = 0; ii < disparityFloat.cols * disparityFloat.rows; ++ii)
+			pDisparityChar[ii] = static_cast<unsigned char>(round(pDisparityFloat[ii]));
+
+		//generate and save colorized disparity image
+		double min;
+		double max;
+		cv::minMaxIdx(disparityImageChar, &min, &max);
+		double scale = 255. / (max - min);
+		disparityImageChar.convertTo(disparityImageChar, CV_8UC1, scale, -min * scale);
+		cv::Mat colorsMap;
+		cv::applyColorMap(disparityImageChar, colorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullPath, colorsMap);
+	}
+
+
+	void saveDepthImage(cv::Mat& depthFloat, const std::string& fullPath)
+	{
+		cv::Mat depthImage(depthFloat.size(), CV_16UC1);
+		unsigned short* pDepth = (unsigned short*)depthImage.data;
+		float* pFloatDisparity = depthFloat.ptr<float>();
+		for (int ii = 0; ii < depthFloat.cols * depthFloat.rows; ++ii)
+			pDepth[ii] = static_cast<unsigned short>(round(pFloatDisparity[ii]));
+		cv::imwrite(fullPath, depthImage);
+	}
+
+
+	void saveColorizedDepthImage(cv::Mat& depthFloat, const std::string& fullPath)
+	{
+		cv::Mat depthImage(depthFloat.size(), CV_16UC1);
+		unsigned short* pDepth = (unsigned short*)depthImage.data;
+		float* pFloatDisparity = depthFloat.ptr<float>();
+		for (int ii = 0; ii < depthFloat.cols * depthFloat.rows; ++ii)
+			pDepth[ii] = static_cast<unsigned short>(round(pFloatDisparity[ii]));
+
+		double min;
+		double max;
+		cv::minMaxIdx(depthImage, &min, &max);
+		double scale = 255. / (max - min);
+		depthImage.convertTo(depthImage, CV_8UC1, scale, -min * scale);
+		cv::Mat colorsMap;
+		cv::applyColorMap(depthImage, colorsMap, cv::COLORMAP_JET);
+		cv::imwrite(fullPath, colorsMap);
+	}
+
 
 	void processFolder(std::string dirPath, int minDisp, int dispLevel, bool doRect, int mode, int outputFormat, rvStereoCamera stereo_parameter)
 	{
@@ -368,8 +417,11 @@ namespace dfs_test_tool
 		PointCloudType pcl;
 		PointCloudColorType pclColor;
 		cv::Mat disp;
+		cv::Mat dep;
 		int width,height,newWidth,newHeight,stride,newStride;
 
+		dfs_parameter.filterHeight = 9; // filter h/w is important.
+		dfs_parameter.filterWidth = 15;
 		dfs_parameter.disparity.minDisparity = minDisp;
 		dfs_parameter.disparity.numDisparityLevels = dispLevel;
 		dfs_parameter.doRectification = doRect;
@@ -428,15 +480,12 @@ namespace dfs_test_tool
 				width = newWidth;
 				height = newHeight;
 				stride = newStride;
-				if (outputFormat == 2)
-				{
-					pcl.reserve(width * height * 3);
-				}
-				if (outputFormat == 3)
-				{
-					pclColor.reserve(width * height * 6);
-				}
+
+				pcl.reserve(width * height * 3);
+				pclColor.reserve(width * height * 6);
 				disp = cv::Mat::zeros(height, width, CV_32FC1);
+				dep = cv::Mat::zeros(height, width, CV_32FC1);
+
 				dfs_base->initialize(width, height, stride, dfs_parameter, stereo_parameter);
 				rvStereoCamera rectified_stereo_parameter = dfs_base->getRectifiedCameraParameter();
 			}
@@ -460,33 +509,65 @@ namespace dfs_test_tool
 				fullFolder = ".";
 			else
 				fullFolder.resize(s);
+
+			std::string tstr = std::to_string(t.index);
 			if (outputFormat == 0)
 			{
 				dfs_base->calculateDisparity(pLImg, pRImg, disp.ptr<float>());
-				std::string name = "disparity";
-				saveMap(fullFolder, name, t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
+				saveMap(fullFolder, "disparity", t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
 			}
 			else if (outputFormat == 1)
 			{
 				dfs_base->calculateDepth(pLImg, pRImg, disp.ptr<float>());
-				std::string name = "depth";
-				saveMap(fullFolder, name, t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
+				saveMap(fullFolder, "depth", t.index, disp.ptr<float>(), disp.cols, disp.rows, mode);
 			}
 			else if (outputFormat == 2)
 			{
 				dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
-				char fileName[255];
-				snprintf(fileName, 255, "/point_cloud_%d.ply", t.index);
+				char fileName[256];
+				snprintf(fileName,256,"/point_cloud_%d.ply", t.index);
 				std::string ply_file = fullFolder + fileName;
-				dfs_test_tool::writePLYPointcloud(ply_file, pcl, width, height);
+				dfs_test_tool::writePLYPointCloud(ply_file, pcl, width, height);
 			}
-			else // point cloud fusion with left image
+			else if(outputFormat == 3)
 			{
 				dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
-				char fileName[255];
-				snprintf(fileName, 255, "/point_cloud_color_%d.ply", t.index);
+				char fileName[256];
+				snprintf(fileName,256, "/point_cloud_color_%d.ply", t.index);
 				std::string ply_file = fullFolder + fileName;
-				dfs_test_tool::writePLYPointcloudColor(ply_file, pclColor, width, height);
+				dfs_test_tool::writePLYPointCloudColor(ply_file, pclColor, width, height);
+			}
+			else if(outputFormat == 4) // save pc, disparity, depth
+			{
+				dfs_base->calculateDispDepthPointCloud(pLImg, pRImg, disp.ptr<float>(), dep.ptr<float>(), &pcl);
+				dfs_test_tool::writePLYPointCloud(fullFolder + "/point_cloud_" + tstr+ ".ply", pcl, disp.cols, disp.rows);
+        		dfs_test_tool::saveColorizedDisparity(disp, fullFolder + "/disparity_" + tstr + ".png");
+        		dfs_test_tool::saveColorizedDepthImage(dep, fullFolder + "/depthColor_" + tstr + ".png");
+			}
+			else if(outputFormat == 5) // save pcc, disparity, depth
+			{
+				dfs_base->calculateDispDepthPointCloudColor(pLImg, pRImg, disp.ptr<float>(), dep.ptr<float>(), &pclColor);
+				dfs_test_tool::writePLYPointCloudColor(fullFolder + "/point_cloud_color_" + tstr + ".ply", pclColor, disp.cols, disp.rows);
+				dfs_test_tool::saveColorizedDisparity(disp, fullFolder + "/disparity_" + tstr + ".png");
+				dfs_test_tool::saveColorizedDepthImage(dep, fullFolder + "/depthColor_" + tstr + ".png");
+			}
+			else if (outputFormat == 6) // pc, disparity
+			{
+				dfs_base->calculatePointCloud(pLImg, pRImg, &pcl);
+				dfs_test_tool::writePLYPointCloud(fullFolder + "/point_cloud_" + tstr + ".ply", pcl, disp.cols, disp.rows);
+				cv::Mat tempMap = cv::Mat::zeros(disp.rows, disp.cols, CV_32FC1);
+				dfs_base->getDisparity((float*)tempMap.data);
+				cv::imwrite(fullFolder + "/disparityOri_" + tstr + ".png", tempMap);
+				dfs_test_tool::saveColorizedDisparity(tempMap, fullFolder + "/disparity_" + tstr + ".png");
+			}
+			else if (outputFormat == 7) // pcc, disparity
+			{
+				dfs_base->calculatePointCloudColor(pLImg, pRImg, &pclColor);
+				dfs_test_tool::writePLYPointCloudColor(fullFolder + "/point_cloud_color_" + tstr + ".ply", pclColor, disp.cols, disp.rows);
+				cv::Mat tempMap = cv::Mat::zeros(disp.rows, disp.cols, CV_32FC1);
+				dfs_base->getDisparity((float*)tempMap.data);
+				cv::imwrite(fullFolder + "/disparityOri_" + tstr + ".png", tempMap);
+				dfs_test_tool::saveColorizedDisparity(tempMap, fullFolder + "/disparity_" + tstr + ".png");
 			}
 		}
 	}
