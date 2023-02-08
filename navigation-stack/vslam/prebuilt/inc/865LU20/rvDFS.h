@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -338,6 +338,31 @@ extern "C"
 	//------------------------------------------------------------------------------
 	bool RV_API rvDFS_CalculateDispDepthPointCloudColorWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudType* pointCloud, PointCloudColorType* pointCloudColor, rvDFSDisparity* dfs_disparity);
 
+        /// @brief
+        ///     get point cloud result by disparity input.
+        /// @param pHandle
+        ///     Handle of rvDFS
+        /// @param disparities
+        ///     input float disparities
+        /// @param pointCloud
+        ///     output point cloud result.
+        /// @return
+        ///     Return True if success or False if it fails.
+        bool RV_API rvDFS_disparity2PointCloud(rvDFS* pHandle, float* disparities, PointCloudType* pointCloud);
+
+        /// @brief
+        ///     get point cloud color result by disparity input.
+        /// @param pHandle
+        ///     Handle of rvDFS
+        /// @param rectL
+        ///     input rect left image
+        /// @param disparities
+        ///     input float disparities
+        /// @param pointCloud
+        ///     output point cloud color result.
+        /// @return
+        ///     Return True if success or False if it fails.
+        bool RV_API rvDFS_disparity2PointCloudColor(rvDFS* pHandle, uint8_t* rectL, float* disparities, PointCloudColorType* pointCloud);
 
         //------------------------------------------------------------------------------
         /// @detailed

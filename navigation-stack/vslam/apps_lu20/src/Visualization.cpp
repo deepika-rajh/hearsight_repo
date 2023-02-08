@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -283,18 +283,10 @@ void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uin
     rview = cv::Mat(heightFrame, widthFrame, CV_8UC1);
     memcpy(rview.data, image, heightFrame * widthFrame);
 
-        cv::cvtColor(rview, rview, cv::COLOR_GRAY2BGR);
-
-    cv::Point2f imagePoint;
-    for (int i = 0; i < pointNum; i++)
-    {
-        imagePoint.x = pPoints[i].pixLoc[0];
-        imagePoint.y = pPoints[i].pixLoc[1];
-        cv::circle(rview, imagePoint, 4, cv::Scalar(0, 255, 0)); //green
-    }
+    cv::cvtColor(rview, rview, cv::COLOR_GRAY2BGR);
 
     char strFrame[60];
-    cv::Scalar color(255, 0, 0);
+    cv::Scalar color(0, 255, 0);
     if (RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_FAILED == quality ||
         RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_INITIALIZING == quality
         )
@@ -304,6 +296,15 @@ void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uin
     else if (quality == RV_VSLAM_TRACKING_STATE::RV_VSLAM_TRACKING_STATE_BAD)
     {
         color = cv::Scalar(0, 255, 255);
+    }
+
+
+    cv::Point2f imagePoint;
+    for (int i = 0; i < pointNum; i++)
+    {
+       imagePoint.x = pPoints[i].pixLoc[0];
+       imagePoint.y = pPoints[i].pixLoc[1];
+       cv::circle(rview, imagePoint, 4, color); //green
     }
 
     return;

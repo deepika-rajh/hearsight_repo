@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -37,7 +37,8 @@ inline void mySleep(int x)
 
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/string.hpp> 
+#include <nav_msgs/msg/odometry.hpp>
 #elif ROS1_BASED
 #include <ros/ros.h>
 #endif
@@ -46,6 +47,13 @@ inline void mySleep(int x)
 #include <condition_variable>
 #endif //SIMULATION
 
+typedef struct
+{
+    double w;
+    double x;
+    double y;
+    double z;
+}quaternion_type;
 
 class VMSystem : public HijackReceiver
 {
@@ -96,6 +104,7 @@ public:
 
 #ifdef ROS_BASED
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_sub;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr cameraInMapPose_sub;
 #endif
 private:
     VMSystem(const VMSystem&) = delete;
@@ -130,6 +139,7 @@ private:
 
 #ifdef ROS_BASED
     void state_callbackROS(const std_msgs::msg::String::SharedPtr msg) const;
+    void pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) const;
 #endif
 };
 

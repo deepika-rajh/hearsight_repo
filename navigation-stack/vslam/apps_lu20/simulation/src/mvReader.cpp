@@ -1,6 +1,6 @@
 /*****************************************************************************
  * @copyright
- * Copyright (c) 2018-2022 Qualcomm Technologies, Inc.
+ * Copyright (c) 2018-2023 Qualcomm Technologies, Inc.
  * All Rights Reserved.
  * Confidential and Proprietary - Qualcomm Technologies, Inc.
  * *******************************************************************************/
@@ -188,7 +188,7 @@ bool MVReader::GetNextFrame( mvFrame & frame, std::vector<sensor_wheel> & wheelO
    do
    {
       getIMUData = GetNextIMUSample( reader, frame.timestamp + (int64_t)2e7, imuSample );
-      if( getIMUData && imuSample.time_acc > frame.timestamp - 80e6)
+      if( getIMUData ) // && imuSample.time_acc > frame.timestamp - 80e6)
       {
          imuSampleSet.push_back( imuSample );
       }

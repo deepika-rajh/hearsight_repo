@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -124,7 +124,55 @@ void VMSystem::state_callbackROS(const std_msgs::msg::String::SharedPtr msg) con
 {
     state_callback(msg->data);
 }
+
+
+void Quaternion2Matrix( quaternion_type *q, double *m )
+{
+   m[0] = 2 * q->w * q->w + 2 * q->x * q->x - 1;
+   m[1] = 2 * q->x * q->y - 2 * q->w * q->z;
+   m[2] = 2 * q->x * q->z + 2 * q->w * q->y;
+   m[3] = 2 * q->x * q->y + 2 * q->w * q->z;
+   m[4] = 2 * q->w * q->w + 2 * q->y * q->y - 1;
+   m[5] = 2 * q->y * q->z - 2 * q->w * q->x;
+   m[6] = 2 * q->x * q->z - 2 * q->w * q->y;
+   m[7] = 2 * q->y * q->z + 2 * q->w * q->x;
+   m[8] = 2 * q->w * q->w + 2 * q->z * q->z - 1;
+}
+
+
+void VMSystem::pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) const
+{
+    rvPose6DRTWithTimestamp cameraPose;
+
+    quaternion_type q;
+    q.x = msg->pose.pose.orientation.x;
+    q.y = msg->pose.pose.orientation.y;
+    q.z = msg->pose.pose.orientation.z;
+    q.w = msg->pose.pose.orientation.w;
+    double rotation[9];
+    Quaternion2Matrix(&q, rotation);
+    cameraPose.pose.matrix[0][0] = rotation[0];
+    cameraPose.pose.matrix[0][1] = rotation[1];
+    cameraPose.pose.matrix[0][2] = rotation[2];
+    cameraPose.pose.matrix[1][0] = rotation[3];
+    cameraPose.pose.matrix[1][1] = rotation[4];
+    cameraPose.pose.matrix[1][2] = rotation[5];
+    cameraPose.pose.matrix[2][1] = rotation[6];
+    cameraPose.pose.matrix[2][2] = rotation[7];
+    cameraPose.pose.matrix[2][3] = rotation[8];
+
+    cameraPose.pose.matrix[0][3] = msg->pose.pose.position.x;
+    cameraPose.pose.matrix[1][3] = msg->pose.pose.position.y;
+    cameraPose.pose.matrix[2][3] = msg->pose.pose.position.z; 
+
+    cameraPose.timestamp  = msg->header.stamp.sec * 1e9;
+
+    addCameraPose(cameraPose);
+
+    printf("Input Camera pose time is %ld\n", cameraPose.timestamp);
+}
 #endif
+
 /**********************   C APIs end   ************************************/
 
 VMSystem::~VMSystem()
@@ -157,8 +205,12 @@ VMSystem::VMSystem(std::shared_ptr<CameraInterface>& camera)
     }
 
 #ifdef ROS_BASED
+    cameraInMapPose_sub = g_node->create_subscription<nav_msgs::msg::Odometry>("cameraPoseInMap", 10,
+        std::bind(&VMSystem::pose_callbackROS, this, _1));
     state_sub = g_node->create_subscription<std_msgs::msg::String>("VM_state", 10,
         std::bind(&VMSystem::state_callbackROS, this, _1));
+
+
 #endif
 }
 

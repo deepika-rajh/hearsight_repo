@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -92,7 +92,13 @@ bool TUMRGBDReader::GetNextFrame( mvFrame & frame, std::vector<sensor_wheel> & w
       ReleaseMVImage( frame.depthImage );
       AllocateMvImage( frame.depthImage, depth.cols, depth.rows );
    }
-   memcpy( frame.depthImage->pixels, depth.data, depth.step[0] * depth.rows);
+   uint16_t* imgBuf = frame.depthImage->pixels;
+   for (int i=0; i<depth.rows; i++)
+      for (int j = 0; j < depth.cols; j++)
+      {
+         *imgBuf = depth.at<uint16_t>(i, j) / 5;
+         imgBuf++;
+      }
    frame.timestamp = (int64_t)(imageList[curImageIndex].timestamp*1e9);
    
    curImageIndex++;

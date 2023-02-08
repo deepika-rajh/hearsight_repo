@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -20,11 +20,14 @@ namespace dfs_test_tool {
 		std::string rightImage;
 		int			index;
 	}stereoImagePath;
-	void writePLYPointcloud(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height);
-	void writePLYPointcloudColor(const std::string& ply_file_path, const PointCloudColorType& pointCloud, size_t width, size_t height);
+	void writePLYPointCloud(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height);
+	void writePLYPointCloudColor(const std::string& ply_file_path, const PointCloudColorType& pointCloud, size_t width, size_t height);
 	rvStereoCamera importStereoCalData(const std::string& file);
 	void processFolder(std::string dirPath, int minDisp, int dispLevel, bool doRect, int mode, int outputFormat, rvStereoCamera stereo_parameter);
-	void saveMap(std::string& fullFolder, std::string& mapName, int nameIdx, float* disparityFloat, int width, int height, int mode);
+	void saveColorizedDisparity(cv::Mat& disparityFloat, const std::string& fullPath);
+	void saveDepthImage(cv::Mat& depthFloat, const std::string& fullPath);
+	void saveColorizedDepthImage(cv::Mat& depthFloat, const std::string& fullPath);
+	void saveMap(const std::string& fullFolder, const std::string& mapName, int nameIdx, float* disparityFloat, int width, int height, int mode);
 	void readImage(const char* imageName, cv::Mat& image, int* pWidth, int* pHeight, int* pStride, bool SBS);
 	void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat& imgDisparity8U, int dispLevel, int iterNum);
 }

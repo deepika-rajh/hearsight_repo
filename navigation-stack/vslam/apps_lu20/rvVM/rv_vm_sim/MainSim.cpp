@@ -1,14 +1,33 @@
 /***************************************************************************//**
 @copyright
-Copyright (c) 2017-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2017-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 
-//#include "mvVSLAM.h"
+#ifdef WIN32
+#include "windows.h"
+#define MV_INITIALIZE
+#include "mv.h"
+#undef MV_EXPORTS
+
+#ifdef MV_INITIALIZE
+#define MV_EXTERN /* nothing */
+//HINSTANCE hLib_mv = NULL;
+#else
+#define MV_EXTERN extern
+MV_EXTERN HINSTANCE hLib_mv;
+#endif
+//#include <vld.h> //for memory leak detection
+#endif
+
+#include "mvVSLAM.h"
 #include "mvVM.h"
 #include "mvSRW.h"
 
+#include "mvVSLAM.h"
+#include "mvVM.h"
+#include "mvSRW.h"
 #include <stdlib.h>
 #include <iostream>
 #include <string>

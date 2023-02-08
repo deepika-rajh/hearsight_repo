@@ -1,6 +1,6 @@
 ﻿/***************************************************************************//**
 @copyright
-Copyright (c) 2017-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2017-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -221,11 +221,11 @@ bool VirtualSensorDevice::ParsePlaybackParameters( const std::string & sensorTyp
 
    // Select the image format
 
-   if( cameraConfig.imageFormat == YUV_FORMAT )
+   if( YUV_FORMAT == cameraConfig.imageFormat )
    {
       formatVar = 4;
    }
-   else if( cameraConfig.imageFormat == RAW_FORMAT )
+   else if( RAW_FORMAT == cameraConfig.imageFormat)
    {
 
       formatVar = 5;

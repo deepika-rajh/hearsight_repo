@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -87,11 +87,6 @@ public:
     VSLAMSystem( std::shared_ptr<CameraInterface> & camera );
     static void addImageToVslam( const int64_t timeStamp, const uint8_t * imageBuf, const uint16_t * depthBuf );
     static void state_callback(const std::string& msg);
-
-    static void setSystemWorking()
-    {
-       systemState = KWORKING;
-    }
 
     static bool isSystemWorking()
     {

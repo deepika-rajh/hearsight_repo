@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -144,6 +144,26 @@ namespace rv_dfs
         ///   DFS disparity parameters pointer, can be null
         //------------------------------------------------------------------------------
 	    virtual bool calculateDispDepthPointCloudColor(uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudColorType* pointCloudColor, rvDFSDisparity* dfs_disparity=nullptr) = 0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Convert disparity map to point cloud
+        /// @param disparities
+        ///   depth map pointer
+        /// @param pointCloud
+        ///   point cloud pointer to pointer for output
+        //------------------------------------------------------------------------------
+        virtual bool disparity2PointCloud(float* disparities, PointCloudType* pointCloud)=0;
+
+        //------------------------------------------------------------------------------
+        /// @detailed
+        ///     Convert disparity map to point cloud color data
+        /// @param disparities
+        ///   depth map pointer
+        /// @param pointCloud
+        ///   point cloud color pointer to pointer for output
+        //------------------------------------------------------------------------------
+        virtual bool disparity2PointCloudColor(uint8_t* rectL, float* disparities, PointCloudColorType* pointCloud)=0;
 
         //------------------------------------------------------------------------------
         /// @detailed
