@@ -19,14 +19,14 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
-#include <image_transport/image_transport.h>
+#include <image_transport/image_transport.hpp>
 #include <cv_bridge/cv_bridge.h>
 #endif
 
 #ifdef STEREO_ROS
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.h>
+#include <image_transport/image_transport.hpp>
 #include <sensor_msgs/image_encodings.h>
 #include <nav_msgs/GetMap.h>
 #endif

@@ -10,10 +10,11 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <string>
 #include <unistd.h>
 
-#include "VISLAMSystem.h"
-#include "InputCamera_ov9282.h"
+#include "VSLAMSystem.h"
+#include "InputMonoCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
+#include <VSLAMWheel.h>
 
 //ROS2 common headers
 #include <rclcpp/rclcpp.hpp>
@@ -27,68 +28,42 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 bool debugLevel = 0;
 bool RV_STDERR_LOGGING = true;
-static char *helpMsg =
-      "mv_vwslam \n"
-      "Usage: mv_vwslam [-options]\n"
-      "-c : set configuration files path, default path is /data/misc/vwslam/ \n"
-      "-o : set output files path, default path is /data/vwslam/ \n"
-      "-d : set vslam debug level: enable debug info(1), disable debug info(0) \n"
-      "-v : get vslam app version \n"
-      "-h : print help msg\n";
+
 
 rclcpp::Node::SharedPtr g_node = nullptr;
-image_transport::Publisher    color_pub;
+
 image_transport::Publisher    labeled_img_pub;
 image_transport::Publisher    occupancy_img_pub;
+rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub = nullptr;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
 rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
 rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub = nullptr;
 
+
+static void INT_handler (int /*sig*/)
+{
+    printf("signal received to stop\n");
+    rclcpp::shutdown();
+}
+
+
 int main( int argc, char** argv )
 {
-   int opt;
+   std::string sensorSetting = std::string( "/data/misc/vwslam/" );
+   std::string algSetting="/data/misc/vwslam/Configuration/monoSlam.cfg";
+   std::string output="/data/vwslam/";
 
-   std::string root = std::string( "/data/misc/vwslam/" );
-   std::string output = std::string( "/data/vwslam/" );
-
-   if( argc < 2 )
+   if (argc == 4)
    {
-      printf( "%s run with default setting.\n", argv[0] );
+	   sensorSetting = std::string(argv[1]);
+	   algSetting = std::string(argv[2]);
+	   output = std::string(argv[3]);
    }
-   else
-   {
-      while((opt = getopt(argc, argv, "c:o:i:d:vh")) != -1)
-      {
-        switch(opt) {
-         case 'c':
-            root = std::string(optarg);
-          break;
 
-         case 'o':
-            output = std::string(optarg);
-          break;
-
-         case 'd':
-            debugLevel = atoi(optarg);
-            printf("VSLAM debug level is %d\n", debugLevel);
-          break;
-
-         case 'v':
-            printf( "%s version: %s \n", argv[0], VSLAM_APP_VERSION);
-            return 0;
-
-        case 'h':
-        default:
-            printf("%s", helpMsg);
-            return 1;
-         }
-      }
-   }
-   
    rclcpp::init(argc, argv);
-   g_node = rclcpp::Node::make_shared("rv_vwslam_ros");
-   
-   color_pub = image_transport::create_publisher(g_node.get(), "camera/gray_image");
+   signal(SIGINT, INT_handler);
+   g_node = rclcpp::Node::make_shared("dvslam_ros2camera");
+
    labeled_img_pub = image_transport::create_publisher(g_node.get(), "vslam/labeled_img");
    raw_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("vslam_odom_raw", 5);
    robot_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("robot_odom", 5);
@@ -100,10 +75,10 @@ int main( int argc, char** argv )
       output = output + '/';
    }
 
-   tmp = *(root.end() - 1);
+   tmp = *(sensorSetting.end() - 1);
    if( tmp != '/' && tmp != '\\' )
    {
-      root = root + '/';
+      sensorSetting = sensorSetting + '/';
    }
 
 #ifdef ARM_BASED
@@ -112,18 +87,13 @@ int main( int argc, char** argv )
 #endif
 
    InputWheelROS wheel;
-
+   wheel.addCallback(VSLAMWheel::wheelCallback);
    //start VSLAM system
-   std::string sensorSetting, algSetting;
-   sensorSetting = root;
-   sensorSetting += "/Configuration/vslam.cfg";
-   algSetting = sensorSetting;
-   
-   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputCamera_OV9282>( sensorSetting.c_str() );
-   rvTargetImage target;
-   ParseSensorParam(root, "Configuration/vslam.cfg", VISLAMSystem::wheelConfiguration, VISLAMSystem::imuConfiguration, target);
-   std::shared_ptr<VISLAMSystem> sys = VISLAMSystem::Initialize( algSetting, output, inputCamera, false);
-   //std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize(root, output, false);
+   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputMonoCameraROS2>(g_node);
+   ParseSensorParam(sensorSetting, "Configuration/vslam.cfg", VSLAMSystem::wheelConfiguration, VSLAMSystem::imuConfiguration, VSLAMSystem::targetImage);
+
+   std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize( algSetting, output, inputCamera, false);
+
    sys->Run();
 
    //wait to quit
@@ -131,21 +101,18 @@ int main( int argc, char** argv )
 
    //stop VSLAM
    sys->Quit();
-   //sys->saveMap();
    sys->deinit();
    sys->state_sub = nullptr;
    sys = nullptr;
    printf("vslam application exits\n");
-   fflush(stdout);
 
-   color_pub.shutdown();
    labeled_img_pub.shutdown();
-   occupancy_img_pub.shutdown();
    rclcpp::shutdown();
    raw_pose_pub = nullptr;
    robot_pose_pub = nullptr;
+   cam_info_pub = nullptr;
    imu_pub = nullptr;
    g_node = nullptr;
    printf("release ros node done\n");
    return 0;
-} 
+}
