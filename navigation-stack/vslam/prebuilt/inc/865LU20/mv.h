@@ -16,7 +16,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
    Common data structures and utilities for the Machine Vision SDK.
 
 @version
-   1.2.16
+   1.2.18
 
 
 @section Overview

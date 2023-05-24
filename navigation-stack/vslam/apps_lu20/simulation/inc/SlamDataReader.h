@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -60,6 +60,20 @@ void copyFromMat( const cv::Mat & s, rvPose6DRT &d )
       for( size_t j = 0; j < 4; j++ )
          d.matrix[i][j] = (float32_t) s.at<type>( i, j );
 }
+
+struct StereoSample
+{
+   int64_t timestamp;
+   std::string leftImageName;
+   std::string rightImageName;
+};
+
+struct fileWithTimestamp
+{
+   int64_t timestamp;
+   std::string filename;
+};
+
 
 
 #endif //__SLAM_DATA_READER_H__

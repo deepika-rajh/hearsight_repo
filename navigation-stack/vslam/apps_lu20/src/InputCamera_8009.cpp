@@ -90,13 +90,13 @@ void InputCamera_8009::onPreviewFrame( ICameraFrame *frame )
             CallCPA();
          }
       }
-      else if( cameraParams.inputFormat == VSLAMCameraParams::YUV_FORMAT )
+      else if( cameraParams.inputFormat == VSLAMCameraParams::Y_ONLY_FORMAT )
       {
          callback( (frame->timeStamp + clockOffset), frame->data, NULL );
       }
       else
       {
-         printf( "Other image formats except RAW_FORMAT & YUV_FORMAT are not supported!!!!\n " );
+         printf( "Other image formats except RAW_FORMAT & Y_ONLY_FORMAT are not supported!!!!\n " );
       }
    }
    countP++;
@@ -248,9 +248,9 @@ int InputCamera_8009::setParameters()
       atlParams.setPreviewFormat( FORMAT_RAW10 );
 #endif
    }
-   else if( cameraParams.inputFormat == VSLAMCameraParams::YUV_FORMAT )
+   else if( cameraParams.inputFormat == VSLAMCameraParams::Y_ONLY_FORMAT )
    {
-      printf( "setting outputFormat YUV_FORMAT\n" );
+      printf( "setting outputFormat Y_ONLY_FORMAT\n" );
       //atlParams.setPictureFormat( FORMAT_JPEG );  //it seem no need to set preview format, as default is already yuv
       //atlParams.setPictureSize( picSize_ );
       //atlParams.setPreviewSize( pSize_ ); 

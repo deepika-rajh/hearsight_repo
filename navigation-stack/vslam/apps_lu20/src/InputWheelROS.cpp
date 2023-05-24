@@ -1,6 +1,6 @@
 /*****************************************************************************
 @copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2020-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -16,7 +16,7 @@ extern queue_mt<sensor_wheel> wheelDataArray;
 extern rclcpp::Node::SharedPtr g_node;
 InputWheelROS::InputWheelROS()
 {
-   wheel_sub = g_node->create_subscription<nav_msgs::msg::Odometry>( "odom_combined", 10,
+   wheel_sub = g_node->create_subscription<nav_msgs::msg::Odometry>( "odom", 10,
                                    std::bind(&InputWheelROS::wheelOdomCallback, this,  _1));
 }
 #else

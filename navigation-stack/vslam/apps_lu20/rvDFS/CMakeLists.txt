@@ -11,6 +11,8 @@ add_definitions(-DRECTIFIED_INPUT)
 add_definitions(-DDFS_CPP_STYLE_INTERFACE)
 add_definitions(-DPROFILING)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+
 set(OpenCV_DIR "/usr/lib/aarch64-linux-gnu/cmake/opencv4/")
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})

@@ -73,7 +73,7 @@ typedef struct mvVSLAM mvVSLAM;
 /// @detailed
 ///     Tracking observation.
 //------------------------------------------------------------------------------
-typedef struct
+typedef struct mvTrackedObservation
 {
    typedef enum
    {

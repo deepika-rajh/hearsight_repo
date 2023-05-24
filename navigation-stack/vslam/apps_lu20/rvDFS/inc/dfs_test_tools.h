@@ -23,12 +23,13 @@ namespace dfs_test_tool {
 	void writePLYPointCloud(const std::string& ply_file_path, const PointCloudType& pointCloud, size_t width, size_t height);
 	void writePLYPointCloudColor(const std::string& ply_file_path, const PointCloudColorType& pointCloud, size_t width, size_t height);
 	rvStereoCamera importStereoCalData(const std::string& file);
+	void writeIntrinsic(const rvStereoCamera& param, const float factorW, const float factorH, const std::string& file);
+	void scaleIntrinsics(rvStereoCamera& param, const float factorW, const float factorH);
 	void processFolder(std::string dirPath, int minDisp, int dispLevel, bool doRect, int mode, int outputFormat, rvStereoCamera stereo_parameter);
-	void saveColorizedDisparity(cv::Mat& disparityFloat, const std::string& fullPath);
-	void saveDepthImage(cv::Mat& depthFloat, const std::string& fullPath);
-	void saveColorizedDepthImage(cv::Mat& depthFloat, const std::string& fullPath);
+	void saveColorizedDisparity(const cv::Mat& disparityFloat, const std::string& fullPath);
+	void saveDepthImage(const cv::Mat& depthFloat, const std::string& fullPath);
+	void saveColorizedDepthImage(const cv::Mat& depthFloat, const std::string& fullPath);
 	void saveMap(const std::string& fullFolder, const std::string& mapName, int nameIdx, float* disparityFloat, int width, int height, int mode);
 	void readImage(const char* imageName, cv::Mat& image, int* pWidth, int* pHeight, int* pStride, bool SBS);
-	void calDispWithSGBM(cv::Mat imgL, cv::Mat imgR, cv::Mat& imgDisparity8U, int dispLevel, int iterNum);
 }
 #endif

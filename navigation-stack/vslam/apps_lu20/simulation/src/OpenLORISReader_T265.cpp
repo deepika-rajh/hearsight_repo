@@ -130,7 +130,7 @@ void OpenLORISReaderT265::ReadCameraConfig( const std::string & filename, rvSter
 
 bool OpenLORISReaderT265::getCameraConfiguration( rvCameraParams & config )
 {
-   config.imageFormat = YUV_FORMAT;
+   config.imageFormat = Y_ONLY_FORMAT;
    config.cameraType = rvStereo;
    config.stereo = cameraConfig;
    //config.stereoRect.camera[0].initialized = false;
@@ -161,7 +161,7 @@ bool OpenLORISReaderT265::getCameraConfiguration( rvCameraParams & config )
    cv::Mat  R_right;
    cv::Mat r( 3, 1, CV_32FC1 );
    memcpy( r.data, cameraConfig.rotation, sizeof( cameraConfig.rotation ) );
-   cv::Rodrigues( r, R_right );
+   cv::Rodrigues( -r, R_right );  //if right's attitude is identity, left's attitude is r. if left is idenetiy, right's is -r.
 
    //The stereo algorithm needs max_disp extra pixels in order to produce valid
    //disparity on the desired output region.This changes the width, but the

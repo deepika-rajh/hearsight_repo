@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2017-2022 Qualcomm Technologies, Inc.
+Copyright (c) 2017-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -64,6 +64,8 @@ bool PoseReader::getPose(rvPose6DRTWithTimestamp& pose )
    std::string buffer;
 
    std::getline(poseStream, buffer, ',');
+   if (poseStream.eof() || poseStream.bad() || poseStream.fail())
+      return false;
    pose.timestamp = std::stoll(buffer);
 
    std::getline(poseStream, buffer, ',');

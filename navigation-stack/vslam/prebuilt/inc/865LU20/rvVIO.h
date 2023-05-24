@@ -127,6 +127,7 @@ extern "C"
         bool                   noInitWhenMoving;
         bool                   useLogCameraHeight;
         rvCameraIntrinsic      *rvCameraCfg;  
+        std::string            algConfigPath;
     }rvVIOCfg;
 
 

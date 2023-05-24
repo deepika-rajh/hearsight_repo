@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -97,7 +97,7 @@ bool EurocReader::GetNextFrame( mvFrame & frame, std::vector<sensor_wheel> & whe
       ReleaseMVImage( frame.rightImage );
       AllocateMvImage( frame.rightImage, iImage.cols, iImage.rows, iImage.step[0] );
    }
-   memcpy( frame.rightImage->pixels, rightImage.data, iImage.step[0] * iImage.rows);
+   memcpy( frame.rightImage->pixels, iImage.data, iImage.step[0] * iImage.rows);
    frame.timestamp = imageList[curImageIndex].timestamp;
    
    curImageIndex++;
@@ -315,7 +315,7 @@ void EurocReader::ReadIMUSamples( const std::string & imageListFile, std::vector
 
 bool EurocReader::getCameraConfiguration( rvCameraParams & config )
 {
-   config.imageFormat = YUV_FORMAT;
+   config.imageFormat = Y_ONLY_FORMAT;
    config.cameraType = rvStereo;
    config.stereo = cameraConfig;
    memcpy( config.stereoRect.translation, cameraConfig.translation, sizeof( cameraConfig.translation ) );

@@ -189,9 +189,11 @@ void OutputRecorder::initialize(const char* path)
    std::string outputDir(path);
    vioFp = fopen((outputDir + "vio_output" + ".csv").c_str(), "wt");
    vioFpTxt = fopen((outputDir + "stamped_traj_estimate" + ".txt").c_str(), "wt");
-   fprintf(vioFpTxt, "# timestamp tx ty tz qx qy qz qw\n");
+   if (vioFpTxt)
+      fprintf(vioFpTxt, "# timestamp tx ty tz qx qy qz qw\n");
    fullStateFp = fopen((outputDir + "fullState.csv").c_str(), "wt");
-   fprintf(fullStateFp, "%% timestampCam timestampIMU aBias[0] aBias[1] aBias[2] wBias[0] wBias[1] wBias[2]\n");
+   if (fullStateFp)
+      fprintf(fullStateFp, "%% timestampCam timestampIMU aBias[0] aBias[1] aBias[2] wBias[0] wBias[1] wBias[2]\n");
 }
 
 void OutputRecorder::deinit()
@@ -222,12 +224,15 @@ void OutputRecorder::write( int64_t timestamp, const rvVISLAMPose & pose)
 {
    float qw, qx, qy, qz;
    Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
-   fprintf(vioFp, "%" PRId64 " %f %f %f %f %f %f %f %d %d\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
-      qx, qy, qz, qw, pose.poseQuality, pose.errorCode);
-   fprintf(vioFpTxt, "%" PRId64 " %f %f %f %f %f %f %f\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
-      qx, qy, qz, qw);
-   fprintf(fullStateFp, "%" PRId64 " %" PRId64 " %f %f %f %f %f %f\n", timestamp, pose.time, pose.aBias[0], pose.aBias[1], pose.aBias[2],
-      pose.wBias[0], pose.wBias[1], pose.wBias[2]); 
+   if (vioFp)
+      fprintf(vioFp, "%" PRId64 " %f %f %f %f %f %f %f %d %d\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
+         qx, qy, qz, qw, pose.poseQuality, pose.errorCode);
+   if (vioFpTxt)
+      fprintf(vioFpTxt, "%" PRId64 " %f %f %f %f %f %f %f\n", pose.time, pose.bodyPose.matrix[0][3], pose.bodyPose.matrix[1][3], pose.bodyPose.matrix[2][3],
+         qx, qy, qz, qw);
+   if (fullStateFp)
+      fprintf(fullStateFp, "%" PRId64 " %" PRId64 " %f %f %f %f %f %f\n", timestamp, pose.time, pose.aBias[0], pose.aBias[1], pose.aBias[2],
+         pose.wBias[0], pose.wBias[1], pose.wBias[2]); 
 }
 
 
@@ -350,8 +355,6 @@ std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSet
 {
    algConfFile = algSetting;
    outputPath = outputDir;
-
-   printf("***ZYM*** initialization started\n");
    if( t.get() == nullptr )
    {
       t = std::make_shared<VISLAMSystem>(camera);
@@ -376,15 +379,6 @@ std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSet
 
 
       vioCfg.delta = imuConfiguration.deltaInSecond; //-0.0068f
-           //tbc and ombc for Y:\data\scveVIO\test-data.
-      //mvReader (SRW): need a function to read imu-camera pose from configuration file
-//      vioCfg.tbc[0] = -0.06445636f;
-//      vioCfg.tbc[1] = -0.0039590518;
-//      vioCfg.tbc[2] = 0.06646236f;
-//
-//      vioCfg.ombc[0] = -0.83710764f;
-//      vioCfg.ombc[1] = -0.76734714f;
-//      vioCfg.ombc[2] = 1.4748833f;
 
       vioCfg.std0Delta = 0.001f;   // firmware/driver upgrades may affect the time alignment
 
@@ -413,6 +407,7 @@ std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSet
       vioCfg.noInitWhenMoving = false; // true;
       vioCfg.limitedIMUbWtrigger = 35.f;
 
+      vioCfg.algConfigPath = algSetting;
       vioPtr = rvVIO_Initialize( &vioCfg );
       rvVIOPointsNum = 200;//100
       pPoints = new rvVISLAMMapPoint[rvVIOPointsNum];

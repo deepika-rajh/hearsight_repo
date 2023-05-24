@@ -207,7 +207,7 @@ void TUMRGBDReader::LoadFileSamples( const std::string& filename, std::vector<fi
 bool
 TUMRGBDReader::getCameraConfiguration( rvCameraParams & config )
 {
-   config.imageFormat = YUV_FORMAT;
+   config.imageFormat = Y_ONLY_FORMAT;
    config.cameraType = rvGrayDepth;
    config.stereo.camera[0].pixelHeight = 480;
    config.stereo.camera[0].pixelWidth = 640;
@@ -256,6 +256,10 @@ TUMRGBDReader::getCameraConfiguration( rvCameraParams & config )
          result = false;
          break;
    }
+
+   config.stereoRect.camera[0].initialized = false;
+   config.stereoRect.camera[0].pixelHeight = config.stereo.camera[0].pixelHeight;
+   config.stereoRect.camera[0].pixelWidth = config.stereo.camera[0].pixelWidth;
    
    return result;
 }

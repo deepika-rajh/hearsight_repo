@@ -64,12 +64,14 @@ extern "C"
    ///     Pointer to the wheel configuration
    /// @param imuConfig
    ///     Pointer to the IMU configuration
+   /// @param targetImage
+   ///     Pointer to the target image configuration
    /// @return
    ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
    //------------------------------------------------------------------------------
    RV_API rvVWSLAM *rvVWSLAM_Initialize( const char * algConfile, const char * output,
                                          const rvCameraParams * cameraConfig, const rvWheelConfiguration * wheelConfig, 
-                                         const rvIMUConfiguration * imuConfig, const rvTargetImage * targetImagePath);
+                                         const rvIMUConfiguration * imuConfig, const rvTargetImage * targetImage);
 
 
    //------------------------------------------------------------------------------
@@ -85,12 +87,14 @@ extern "C"
    ///     Pointer to the wheel configuration
    /// @param imuConfig
    ///     Pointer to the IMU configuration
+   /// @param targetImage
+   ///     Pointer to the target image configuration
    /// @return
    ///     Returns rvVWSLAM object pointer if succeeded, and NULL if failed
    //------------------------------------------------------------------------------
    RV_API rvVWSLAM* rvVWSLAM_Reload( const char * algConfile, const char* output,
                                      const rvCameraParams * cameraConfig, const rvWheelConfiguration * wheelConfig,
-                                     const rvIMUConfiguration* imuConfig, const rvTargetImage* targetImagePath);
+                                     const rvIMUConfiguration* imuConfig, const rvTargetImage* targetImage);
 
 
    //------------------------------------------------------------------------------

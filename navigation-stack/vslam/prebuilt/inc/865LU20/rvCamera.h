@@ -30,15 +30,17 @@ typedef enum
 /************************************************************************//**
 @detailed
    The image format is limited to the following values:
-   -\b YUV_FORMAT = YUV format\n
+   -\b Y_ONLY_FORMAT = Y only format\n
    -\b RAW_FORMAT = RAW format, 8 bits for each pixel\n
    -\b NV12_FORMAT = NV12 format
+   -\b RBG_FORMAT = RGB format
 ****************************************************************************/
 enum rvImageFormat
 {
-    YUV_FORMAT = 0,
+    Y_ONLY_FORMAT = 0,
     RAW_FORMAT,
     NV12_FORMAT,
+    RGB_FORMAT,
 };
 
 
@@ -89,7 +91,7 @@ typedef struct
 {
     float32_t translation[3];
     rvRectCameraConfiguration camera[2];
-} rvRectStereoConfiguration;
+} rvStereoRectCamera;
 
 
 /************************************************************************//*
@@ -115,7 +117,7 @@ struct rvCameraParams
    rvCameraType cameraType;
    rvImageFormat imageFormat;
    rvStereoCamera stereo;
-   rvRectStereoConfiguration stereoRect; //read from configuration file, if not invalide
+   rvStereoRectCamera stereoRect; //read from configuration file, if not invalide
 };
 
 

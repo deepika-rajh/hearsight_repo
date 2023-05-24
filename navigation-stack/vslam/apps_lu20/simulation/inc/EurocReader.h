@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -31,19 +31,6 @@ public:
 
 private:
 
-   struct StereoSample
-   {
-      int64_t timestamp;
-      std::string leftImageName;
-      std::string rightImageName;
-   };
-
-   struct fileWithTimestamp
-   {
-      int64_t timestamp;
-      std::string filename;
-   };
-   
    void ReadImageList( const std::string & imageListFile, std::vector<StereoSample> & imageList );
    void LoadFileSamples( const std::string & filename, std::vector<fileWithTimestamp>& sampleSet );
    void ReadStereoCameraConfig( const std::string & imageListFile, rvStereoCamera & cameraConfig, rvPose6DRT & imuCamera0 );

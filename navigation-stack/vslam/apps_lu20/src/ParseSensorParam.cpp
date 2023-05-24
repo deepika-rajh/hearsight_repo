@@ -1,6 +1,6 @@
 /*******************************************************************************
 @copyright
-Copyright (c) 2022 Qualcomm Technologies, Inc.
+Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
 All Rights Reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
@@ -10,6 +10,10 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <sstream>
 #include "memory.h"
 #include "math.h"
+#include "opencv2/opencv.hpp"
+
+#include "mv.h"
+#include "rvCamera.h"
 
 void EulerToSO3_0( const float32_t* euler, float32_t* rotation );
 bool ReadIMUParamters( const char * imuFile, rvIMUConfiguration & imuParameter );
@@ -49,6 +53,7 @@ bool ParseSensorParam( const std::string & root, const std::string & configFile,
       iss >> itemName;
       if( itemName.compare( "WEF.Tvb" ) == 0 )
       {
+         printf("WEF.Tvb****\n");
          float translation[3];
          iss >> translation[0] >> translation[1] >> translation[2];
          wheelConf.baselinkInCamera.matrix[0][3] = translation[0];
@@ -209,4 +214,124 @@ void ReadMatrix( std::ifstream & file, float * matrix )
    {
       iss >> matrix[i] >> valName;
    }
+}
+
+void getCameraSetting( const cv::Mat & intrinsics, const std::string& distortionModelName, const cv::Mat & distortion, const cv::Size & imageSize, rvCameraIntrinsic & cameraConfig );
+
+bool readStereoCameraParameter( const char *cameraID, rvStereoCamera & configuration, rvStereoRectCamera & outputCamera )
+{
+   printf( "***ZYM*** %s\n", cameraID );
+   cv::FileStorage fs_read( cameraID, cv::FileStorage::READ );
+
+   std::string distortionModelName;
+   fs_read["distortion_model"] >> distortionModelName;
+
+   //cameras->type = mvStereo;
+
+   cv::Size imageSize;
+   fs_read["Image_Size"] >> imageSize;
+   printf( "***ZYM*** width %d height %d\n", imageSize.width, imageSize.height );
+   cv::Mat cameraIntrinsics0, distortion0;
+   fs_read["Camera_Matrix1"] >> cameraIntrinsics0;
+   fs_read["Distortion_Coefficients1"] >> distortion0;
+   getCameraSetting( cameraIntrinsics0, distortionModelName, distortion0, imageSize, configuration.camera[0] );
+
+   cv::Mat cameraIntrinsics1, distortion1;
+   fs_read["Camera_Matrix2"] >> cameraIntrinsics1;
+   fs_read["Distortion_Coefficients2"] >> distortion1;
+   getCameraSetting( cameraIntrinsics1, distortionModelName, distortion1, imageSize, configuration.camera[1] );
+
+   cv::Mat rotation, r;
+   fs_read["R"] >> rotation;
+
+   cv::Mat t;
+   fs_read["T"] >> t;
+   t = t / 1000.;
+
+   if( t.at<double>( 0 ) > 0 )
+   {
+      rotation = rotation.inv();
+      t = -rotation * t;
+   }
+
+   cv::Rodrigues( rotation, r );
+   configuration.rotation[0] = (float32_t)r.at<double>( 0 );
+   configuration.rotation[1] = (float32_t)r.at<double>( 1 );
+   configuration.rotation[2] = (float32_t)r.at<double>( 2 );
+
+   configuration.translation[0] = (float32_t)t.at<double>( 0 );
+   configuration.translation[1] = (float32_t)t.at<double>( 1 );
+   configuration.translation[2] = (float32_t)t.at<double>( 2 );
+
+   outputCamera.camera[0].initialized = false;
+   outputCamera.camera[0].pixelHeight = imageSize.height;
+   outputCamera.camera[0].pixelWidth = imageSize.width;
+   outputCamera.camera[1].initialized = false;
+   outputCamera.camera[1].pixelHeight = imageSize.height;
+   outputCamera.camera[1].pixelWidth = imageSize.width;
+
+   //cv::Mat R0, R1, P0, P1, Q;
+   //if (distortionModelName.compare("fisheye") == 0)
+   //{
+   //   cv::fisheye::stereoRectify(cameraIntrinsics0, distortion0, cameraIntrinsics1, distortion1,
+   //      imageSize, r, t, R0, R1, P0, P1, Q, cv::CALIB_ZERO_DISPARITY);
+   //}
+   //else
+   //{
+   //   cv::stereoRectify( cameraIntrinsics0, distortion0, cameraIntrinsics1, distortion1,
+   //                   imageSize, r, t, R0, R1, P0, P1, Q, cv::CALIB_ZERO_DISPARITY, 0 );
+   //}
+
+   //for( size_t i = 0; i < 3; i++ )
+   //{
+   //   for( size_t j = 0; j < 3; j++ )
+   //   {
+   //      outputCamera.camera[0].P[i][j] = P0.at<double>( i, j );
+   //      outputCamera.camera[1].P[i][j] = P1.at<double>( i, j );
+   //      outputCamera.camera[0].R[i][j] = R0.at<double>( i, j );
+   //      outputCamera.camera[1].R[i][j] = R1.at<double>( i, j );
+   //   }
+   //   outputCamera.camera[0].P[i][3] = P0.at<double>( i, 3 );
+   //   outputCamera.camera[1].P[i][3] = P1.at<double>( i, 3 );
+   //}
+   //outputCamera.translation[0] = (float32_t) (outputCamera.camera[1].P[0][3] / outputCamera.camera[1].P[0][0]);
+   //outputCamera.translation[1] = outputCamera.translation[2] = 0;
+
+   return true;
+}
+
+void getCameraSetting( const cv::Mat & intrinsics, const std::string& distortionModelName, const cv::Mat & distortion, const cv::Size & imageSize, rvCameraIntrinsic & cameraConfig )
+{
+   cameraConfig.focalLength[0] = (float32_t)intrinsics.at<double>( 0, 0 );
+   cameraConfig.focalLength[1] = (float32_t)intrinsics.at<double>( 1, 1 );
+   cameraConfig.principalPoint[0] = (float32_t)intrinsics.at<double>( 0, 2 );
+   cameraConfig.principalPoint[1] = (float32_t)intrinsics.at<double>( 1, 2 );
+
+   cameraConfig.pixelWidth = imageSize.width;
+   cameraConfig.pixelHeight = imageSize.height;
+   cameraConfig.pixelStride = cameraConfig.pixelWidth;
+
+   memset( cameraConfig.distortion, 0, sizeof( cameraConfig.distortion ) );   
+   if (distortionModelName.compare("fisheye") == 0)
+   {
+      cameraConfig.distortionModel = rvDistortionModel::FisheyeModel4;
+   }
+   else
+   {
+       switch (distortion.cols)
+       {
+       case 5:
+           cameraConfig.distortionModel = rvDistortionModel::Polynomial5;
+           break;
+       case 4:
+           cameraConfig.distortionModel = rvDistortionModel::Polynomial4;
+           break;
+       default:
+       case 8:
+           cameraConfig.distortionModel = rvDistortionModel::RationalModel8;
+           break;
+       }
+   }
+   for (int i=0; i<distortion.cols; i++ )
+      cameraConfig.distortion[i] = (float32_t)distortion.at<double>( i );
 }

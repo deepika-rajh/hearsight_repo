@@ -113,7 +113,7 @@ bool OpenLORISReaderD435i::GetNextFrame( mvFrame & frame, std::vector<sensor_whe
 
 bool OpenLORISReaderD435i::getCameraConfiguration( rvCameraParams & config )
 {
-   config.imageFormat = YUV_FORMAT;
+   config.imageFormat = Y_ONLY_FORMAT;
    config.cameraType = rvGrayDepth;
    config.stereo.camera[0] = cameraConfig;
    config.stereoRect.camera[0].initialized = true;

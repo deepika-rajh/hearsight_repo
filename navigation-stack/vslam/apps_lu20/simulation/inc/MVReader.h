@@ -1,6 +1,6 @@
 /*****************************************************************************
  * @copyright
- * Copyright (c) 2018-2022 Qualcomm Technologies, Inc.
+ * Copyright (c) 2018-2023 Qualcomm Technologies, Inc.
  * All Rights Reserved.
  * Confidential and Proprietary - Qualcomm Technologies, Inc.
  * *******************************************************************************/
@@ -44,12 +44,12 @@ private:
    void ReadWheelConfiguration( std::string & fileName );
    bool ParseCameraParameters( const std::string & root, const std::string & configFile );
    bool GetCameraParameter( const char *cameraID, mvCameraConfiguration & configuration, mvCameraConfiguration & outputCamera );
-   bool GetStereoCameraParameter( const char *cameraID, mvStereoConfiguration & configuration, rvRectStereoConfiguration & outputCamera );
-   void getCameraSetting( const cv::Mat & intrinsics, const cv::Mat & distortion, const cv::Size & imageSize, mvCameraConfiguration & cameraConfig );
+   void getCameraSetting( const cv::Mat & intrinsics, const std::string & distortionModelName, const cv::Mat & distortion, const cv::Size & imageSize, mvCameraConfiguration & cameraConfig );
 
    mvCameraConfiguration inputCamera, outputCamera;
-   mvStereoConfiguration stereoCamera;
-   rvRectStereoConfiguration rectStereoCamera;
+
+   rvStereoCamera stereoCamera;
+   rvStereoRectCamera rectStereoCamera;
    bool configValid;
 
    mvCameraDescriptor * cameras;

@@ -103,13 +103,13 @@ void VirtualSensorDevice::addStateCallback(StateCallback callBack)
 
 void VirtualSensorDevice::addWheelCallback(WheelCallback callBack)
 {
-    wheelCallback = callBack;
+   wheelCallback = callBack;
 }
 
 
 void VirtualSensorDevice::addPoseCallback(PoseCallback callBack)
 {
-    poseCallback = callBack;
+   poseCallback = callBack;
 }
 
 
@@ -117,86 +117,86 @@ VirtualSensorDevice::~VirtualSensorDevice()
 {
    cameraMutex.lock();
 
-   if( imageFrame.leftImage != NULL )
+   if (imageFrame.leftImage != NULL)
    {
-      if( imageFrame.leftImage->pixels != NULL )
-         delete[]imageFrame.leftImage->pixels;      
+      if (imageFrame.leftImage->pixels != NULL)
+         delete[]imageFrame.leftImage->pixels;
       delete imageFrame.leftImage;
    }
 
-   if( imageFrame.rightImage != NULL )
+   if (imageFrame.rightImage != NULL)
    {
-      if( imageFrame.rightImage->pixels != NULL )
+      if (imageFrame.rightImage->pixels != NULL)
          delete[]imageFrame.rightImage->pixels;
       delete imageFrame.rightImage;
    }
 
-   if( imageFrame.depthImage != NULL )
+   if (imageFrame.depthImage != NULL)
    {
-      if( imageFrame.depthImage->pixels != NULL )
+      if (imageFrame.depthImage->pixels != NULL)
          delete[]imageFrame.depthImage->pixels;
       delete imageFrame.depthImage;
-   }   
-    
+   }
+
    cameraMutex.unlock();
 }
 
 
 bool VirtualSensorDevice::start()
 {
-   cameraThread = std::make_shared<std::thread>( std::mem_fn( &VirtualSensorDevice::virtualSensorDeviceProc ), this );
+   cameraThread = std::make_shared<std::thread>(std::mem_fn(&VirtualSensorDevice::virtualSensorDeviceProc), this);
    return true;
 }
 
 bool VirtualSensorDevice::stop()
 {
    stopNow = true;
-   if( cameraThread )
+   if (cameraThread)
    {
       cameraThread->join();
    }
    return true;
-} 
+}
 
-bool VirtualSensorDevice::ParsePlaybackParameters( const std::string & sensorType )
+bool VirtualSensorDevice::ParsePlaybackParameters(const std::string& sensorType)
 {
 
-   std::string sequenceName;   
+   std::string sequenceName;
    cameraConfig.stereo.camera[0].pixelHeight = cameraConfig.stereo.camera[0].pixelWidth = 0;
 
    dataReader = NULL;
-   if( sensorType.compare( "OpenLORIS_RGBD" ) == 0
-       || sensorType.compare( "OpenLORIS_RGBDW" ) == 0 )
+   if (sensorType.compare("OpenLORIS_RGBD") == 0
+      || sensorType.compare("OpenLORIS_RGBDW") == 0)
    {
-      dataReader = new OpenLORISReaderD435i( Program_Root );
-      
-   }
-   else if( sensorType.compare( "OpenLORIS_Stereo" ) == 0 
-            || sensorType.compare( "OpenLORIS_StereoW" ) == 0 )
-   {
-      dataReader = new OpenLORISReaderT265( Program_Root );
+      dataReader = new OpenLORISReaderD435i(Program_Root);
 
    }
-   else if( sensorType.compare( "RV_RGBD" ) == 0
-            || sensorType.compare( "RV_MonoW" ) == 0
-            || sensorType.compare( "RV_StereoW" ) == 0
-            || sensorType.compare("RV_RGBDW") == 0
-            || sensorType.compare("RV_Stereo") == 0
-            )
+   else if (sensorType.compare("OpenLORIS_Stereo") == 0
+      || sensorType.compare("OpenLORIS_StereoW") == 0)
    {
-      dataReader = new MVReader( Program_Root );
+      dataReader = new OpenLORISReaderT265(Program_Root);
+
    }
-   else if( sensorType.compare( "EuRoC_Mono" ) == 0
-            || sensorType.compare( "EuRoC_MonoI" ) == 0
-            || sensorType.compare( "EuRoC_Stereo" ) == 0
-            )
+   else if (sensorType.compare("RV_RGBD") == 0
+      || sensorType.compare("RV_MonoW") == 0
+      || sensorType.compare("RV_StereoW") == 0
+      || sensorType.compare("RV_RGBDW") == 0
+      || sensorType.compare("RV_Stereo") == 0
+      )
    {
-      dataReader = new EurocReader( Program_Root );
+      dataReader = new MVReader(Program_Root);
    }
-   else if( sensorType.compare( "TUMRGBD_Mono" ) == 0
-            )
+   else if (sensorType.compare("EuRoC_Mono") == 0
+      || sensorType.compare("EuRoC_MonoI") == 0
+      || sensorType.compare("EuRoC_Stereo") == 0
+      )
    {
-      dataReader = new TUMRGBDReader( Program_Root );
+      dataReader = new EurocReader(Program_Root);
+   }
+   else if (sensorType.compare("TUMRGBD_Mono") == 0
+      )
+   {
+      dataReader = new TUMRGBDReader(Program_Root);
    }
    dataReader->getCameraConfiguration( cameraConfig );
    dataReader->getIMUConfiguration( imuConfig );
@@ -221,7 +221,7 @@ bool VirtualSensorDevice::ParsePlaybackParameters( const std::string & sensorTyp
 
    // Select the image format
 
-   if( YUV_FORMAT == cameraConfig.imageFormat )
+   if( Y_ONLY_FORMAT == cameraConfig.imageFormat )
    {
       formatVar = 4;
    }
@@ -232,7 +232,7 @@ bool VirtualSensorDevice::ParsePlaybackParameters( const std::string & sensorTyp
    }
    else
    {
-      printf( "Only support YUV_FORMAT and RAW_FORMAT for the simulation!\n" );
+      printf( "Only support Y_ONLY_FORMAT and RAW_FORMAT for the simulation!\n" );
       return false;
    }
 

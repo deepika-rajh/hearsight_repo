@@ -204,7 +204,7 @@ bool GetCameraParameter( const char *cameraID, rvCameraParams & configuration )
       }
    }
    configuration.cameraType = rvMonocular;
-   configuration.imageFormat = YUV_FORMAT;
+   configuration.imageFormat = Y_ONLY_FORMAT;
 
    return true;
 }

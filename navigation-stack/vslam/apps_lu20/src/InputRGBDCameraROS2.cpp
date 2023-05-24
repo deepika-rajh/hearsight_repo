@@ -83,7 +83,7 @@ void InputRGBDCameraROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::S
 
    printf("process camera info\n");
 
-   cameraParams.imageFormat = YUV_FORMAT; //Y_ONLY_FORMAT;
+   cameraParams.imageFormat = Y_ONLY_FORMAT;
    cameraParams.cameraType = rvGrayDepth;
    cameraParams.stereo.camera[0].pixelWidth = rgbInfo->width;
    cameraParams.stereo.camera[0].pixelHeight = rgbInfo->height;

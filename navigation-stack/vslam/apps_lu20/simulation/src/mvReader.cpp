@@ -12,6 +12,8 @@
 
 #include <sstream>
 
+bool readStereoCameraParameter(const char* cameraID, rvStereoCamera& configuration, rvStereoRectCamera& outputCamera);
+
 void copyCameraConf( const mvCameraConfiguration & mCamera, rvRectCameraConfiguration & rCamera );
 void copyCameraConf_0( const mvCameraConfiguration & mCamera, rvCameraIntrinsic & rCamera );
 void pose6DYPRTto6DRT( const mvPose6DYPRT* pose, rvPose6DRT* mvPose );
@@ -51,7 +53,10 @@ MVReader::MVReader( const std::string & srwPath ): SlamDataReader( (srwPath+"/wh
    switch (cameras->type )
    {
       case mvStereo:
-         configValid = mvSRW_Reader_GetStereoParameters( reader, cameras->name, &stereoCamera );
+         mvStereoConfiguration stereoCamera0;
+         configValid = mvSRW_Reader_GetStereoParameters( reader, cameras->name, &stereoCamera0 );
+         copyCameraConf_0(stereoCamera0.camera[0], stereoCamera.camera[0]);
+         copyCameraConf_0(stereoCamera0.camera[1], stereoCamera.camera[1]);
          if (!configValid )
             configValid = ParseCameraParameters( srwPath, "Configuration/vslam.cfg" );
          ParseSensorParam(srwPath, "Configuration/vslam.cfg", wheelCon, imuCon, targetImage);
@@ -302,18 +307,12 @@ bool MVReader::getCameraConfiguration( rvCameraParams & config )
    if( !configValid )
       return false;
 
-   config.imageFormat = YUV_FORMAT;
+   config.imageFormat = Y_ONLY_FORMAT;
    switch (cameras->type)
    case mvStereo:
    {
       config.cameraType = rvStereo;
-      copyCameraConf_0( stereoCamera.camera[0], config.stereo.camera[0] );
-      copyCameraConf_0( stereoCamera.camera[1], config.stereo.camera[1] );
-      for( size_t i = 0; i < 3; i++ )
-      {
-         config.stereo.translation[i] = stereoCamera.translation[i];
-         config.stereo.rotation[i] = stereoCamera.rotation[i];
-      }
+      config.stereo = stereoCamera;
       config.stereoRect = rectStereoCamera;
       break;
    case mvMonocular:
@@ -325,8 +324,9 @@ bool MVReader::getCameraConfiguration( rvCameraParams & config )
    default:
       config.cameraType = rvGrayDepth;
       copyCameraConf_0( inputCamera, config.stereo.camera[0] );
-      config.stereo.camera[0].distortionModel = rvDistortionModel::NoDistortion;
-      copyCameraConf( outputCamera, config.stereoRect.camera[0] );
+      config.stereoRect.camera->pixelHeight = config.stereo.camera[0].pixelHeight;
+      config.stereoRect.camera->pixelWidth = config.stereo.camera[0].pixelWidth;
+      config.stereoRect.camera->initialized = false;
       break;
    }
 
@@ -335,6 +335,7 @@ bool MVReader::getCameraConfiguration( rvCameraParams & config )
 
 void copyCameraConf( const mvCameraConfiguration & mCamera, rvRectCameraConfiguration & rCamera )
 {
+   rCamera.initialized = true;
    rCamera.pixelWidth = mCamera.pixelWidth;
    rCamera.pixelHeight = mCamera.pixelHeight;
    for( size_t i = 0; i < 3; i++ )
@@ -475,7 +476,8 @@ bool MVReader::ParseCameraParameters( const std::string & root, const std::strin
       {
          std::string cameraID;
          iss >> cameraID;
-         GetStereoCameraParameter( (tempRoot + cameraID).c_str(), stereoCamera, rectStereoCamera );
+         cameras->type = mvStereo;
+         readStereoCameraParameter( (tempRoot + cameraID).c_str(), stereoCamera, rectStereoCamera );
          printf( "Using camera ID:       %s\n", cameraID.c_str() );
       }
    }
@@ -576,99 +578,13 @@ bool MVReader::GetCameraParameter( const char *cameraID, mvCameraConfiguration &
 }
 
 
-bool MVReader::GetStereoCameraParameter( const char *cameraID, mvStereoConfiguration & configuration, rvRectStereoConfiguration & outputCamera )
-{
-   printf( "***ZYM*** %s\n", cameraID );
-   cv::FileStorage fs_read( cameraID, cv::FileStorage::READ );
 
-   cameras->type = mvStereo;
-
-   cv::Size imageSize;
-   fs_read["Image_Size"] >> imageSize;
-   printf( "***ZYM*** width %d height %d\n", imageSize.width, imageSize.height );
-   cv::Mat cameraIntrinsics0, distortion0;
-   fs_read["Camera_Matrix1"] >> cameraIntrinsics0;
-   fs_read["Distortion_Coefficients1"] >> distortion0;
-   getCameraSetting( cameraIntrinsics0, distortion0, imageSize, configuration.camera[0] );
-
-   cv::Mat cameraIntrinsics1, distortion1;
-   fs_read["Camera_Matrix2"] >> cameraIntrinsics1;
-   fs_read["Distortion_Coefficients2"] >> distortion1;
-   getCameraSetting( cameraIntrinsics1, distortion1, imageSize, configuration.camera[1] );
-
-   cv::Mat rotation, r;
-   fs_read["R"] >> rotation;
-
-   cv::Mat t;
-   fs_read["T"] >> t;
-   t = t / 1000.;
-
-   if( t.at<double>( 0 ) > 0 )
-   {
-      rotation = rotation.inv();
-      t = -rotation * t;
-   }
-
-   cv::Rodrigues( rotation, r );
-   configuration.rotation[0] = (float32_t)r.at<double>( 0 );
-   configuration.rotation[1] = (float32_t)r.at<double>( 1 );
-   configuration.rotation[2] = (float32_t)r.at<double>( 2 );
-
-   configuration.translation[0] = (float32_t)t.at<double>( 0 );
-   configuration.translation[1] = (float32_t)t.at<double>( 1 );
-   configuration.translation[2] = (float32_t)t.at<double>( 2 );
-
-   outputCamera.camera[0].initialized = true;
-   outputCamera.camera[0].pixelHeight = imageSize.height;
-   outputCamera.camera[0].pixelWidth = imageSize.width;
-   outputCamera.camera[1].initialized = true;
-   outputCamera.camera[1].pixelHeight = imageSize.height;
-   outputCamera.camera[1].pixelWidth = imageSize.width;
-
-   cv::Mat R0, R1, P0, P1, Q;
-   cv::stereoRectify( cameraIntrinsics0, distortion0, cameraIntrinsics1, distortion1,
-                      imageSize, r, t, R0, R1, P0, P1, Q, cv::CALIB_ZERO_DISPARITY, 0 );
-
-   for( size_t i = 0; i < 3; i++ )
-   {
-      for( size_t j = 0; j < 3; j++ )
-      {
-         outputCamera.camera[0].P[i][j] = P0.at<double>( i, j );
-         outputCamera.camera[1].P[i][j] = P1.at<double>( i, j );
-         outputCamera.camera[0].R[i][j] = R0.at<double>( i, j );
-         outputCamera.camera[1].R[i][j] = R1.at<double>( i, j );
-      }
-      outputCamera.camera[0].P[i][3] = P0.at<double>( i, 3 );
-      outputCamera.camera[1].P[i][3] = P1.at<double>( i, 3 );
-   }
-   outputCamera.translation[0] = (float32_t) (outputCamera.camera[1].P[0][3] / outputCamera.camera[1].P[0][0]);
-   outputCamera.translation[1] = outputCamera.translation[2] = 0;
-
-   return true;
-}
-
-void MVReader::getCameraSetting( const cv::Mat & intrinsics, const cv::Mat & distortion, const cv::Size & imageSize, mvCameraConfiguration & cameraConfig )
-{
-   cameraConfig.focalLength[0] = (float32_t)intrinsics.at<double>( 0, 0 );
-   cameraConfig.focalLength[1] = (float32_t)intrinsics.at<double>( 1, 1 );
-   cameraConfig.principalPoint[0] = (float32_t)intrinsics.at<double>( 0, 2 );
-   cameraConfig.principalPoint[1] = (float32_t)intrinsics.at<double>( 1, 2 );
-
-   cameraConfig.pixelWidth = imageSize.width;
-   cameraConfig.pixelHeight = imageSize.height;
-   cameraConfig.memoryStride = cameraConfig.pixelWidth;
-   cameraConfig.uvOffset = 0;
-
-   memset( cameraConfig.distortion, 0, sizeof( cameraConfig.distortion ) );    
-   cameraConfig.distortionModel = distortion.cols;
-   for (int i=0; i<distortion.cols; i++ )
-      cameraConfig.distortion[i] = (float32_t)distortion.at<double>( i );
-}
 
 void copyCameraConf_0( const mvCameraConfiguration & mCamera, rvCameraIntrinsic & rCamera )
 {
    rCamera.pixelWidth = mCamera.pixelWidth;
    rCamera.pixelHeight = mCamera.pixelHeight;
+   rCamera.pixelStride = mCamera.memoryStride;
    rCamera.principalPoint[0] = (float32_t)mCamera.principalPoint[0];
    rCamera.principalPoint[1] = (float32_t)mCamera.principalPoint[1];
    rCamera.focalLength[0] = (float32_t)mCamera.focalLength[0];

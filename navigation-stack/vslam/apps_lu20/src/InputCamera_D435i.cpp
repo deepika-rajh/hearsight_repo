@@ -311,7 +311,8 @@ bool InputCamera_D435i::start()
               configuration.stereo.camera[0].distortion[2] = intrinsics.coeffs[2];
               configuration.stereo.camera[0].distortion[3] = intrinsics.coeffs[3];
               configuration.stereo.camera[0].distortion[4] = intrinsics.coeffs[4];
-
+              configuration.cameraType = rvGrayDepth;
+              configuration.imageFormat = Y_ONLY_FORMAT;
 	  }
 	  catch (const std::exception& e) {
 	     printf("failed to get camera intrinsic\n");
