@@ -26,16 +26,29 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <rvQueue.h>
 #include <opencv2/opencv.hpp>
 
+#ifdef ROS_BASED
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/image_encodings.hpp>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+#endif
+
 queue_mt<sensor_hijack> hijackArray(BUF_SIZE);
 
 //static members definition
 rvVM* VMSystem::vmPtr = nullptr;
+#if 0
+rvDFS* VMSystem::dfsPtr = nullptr;
+uint8_t* VMSystem::lImage = nullptr;
+uint8_t* VMSystem::rImage = nullptr;
+float* VMSystem::depthImageF = nullptr;
+uint16_t* VMSystem::depthImageS = nullptr;
+#endif
 std::shared_ptr<VMSystem> VMSystem::t = nullptr;
 std::shared_ptr<VSLAMHijack> VMSystem::hijack = nullptr;
 VMSystem::SystemState VMSystem::systemState = KSLEEPING;
 std::string VMSystem::algConfFile = "";
 rvCameraParams VMSystem::cameraConfiguration;
-
 std::shared_ptr<CameraInterface> VMSystem::inputCamera = nullptr;
 
 int VMSystem::width = 0;
@@ -67,6 +80,8 @@ using std::placeholders::_1;
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
 extern rclcpp::Node::SharedPtr g_node;
+
+extern image_transport::Publisher    occupancy_img_pub;
 
 void pub_camera_raw_pose(const rvVSLAMPose& pose)
 {
@@ -165,7 +180,7 @@ void VMSystem::pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) co
     cameraPose.pose.matrix[1][3] = msg->pose.pose.position.y;
     cameraPose.pose.matrix[2][3] = msg->pose.pose.position.z; 
 
-    cameraPose.timestamp  = msg->header.stamp.sec * 1e9;
+    cameraPose.timestamp  = rclcpp::Time(msg->header.stamp.sec, msg->header.stamp.nanosec, RCL_ROS_TIME).nanoseconds();
 
     addCameraPose(cameraPose);
 
@@ -183,7 +198,20 @@ VMSystem::~VMSystem()
 void VMSystem::deinit()
 {
     printf("VM de-initializing");
-    rvVM_Deinitialize(vmPtr);
+
+#if 0
+    if (dfsPtr)
+    {
+       rvDFS_Deinitialize(dfsPtr);
+       delete[] lImage;
+       delete[] rImage;
+       delete[] depthImageF;
+       delete[] depthImageS;
+    }
+#endif
+
+    if (vmPtr)
+       rvVM_Deinitialize(vmPtr);
 
     inputCamera = nullptr;
     hijack = nullptr;
@@ -205,12 +233,10 @@ VMSystem::VMSystem(std::shared_ptr<CameraInterface>& camera)
     }
 
 #ifdef ROS_BASED
-    cameraInMapPose_sub = g_node->create_subscription<nav_msgs::msg::Odometry>("cameraPoseInMap", 10,
+    cameraInMapPose_sub = g_node->create_subscription<nav_msgs::msg::Odometry>("vslam_odom_raw", 10,
         std::bind(&VMSystem::pose_callbackROS, this, _1));
     state_sub = g_node->create_subscription<std_msgs::msg::String>("VM_state", 10,
         std::bind(&VMSystem::state_callbackROS, this, _1));
-
-
 #endif
 }
 
@@ -251,8 +277,38 @@ std::shared_ptr<VMSystem> VMSystem::Initialize(const std::string& algSetting, st
             std::shared_ptr<HijackReceiver> tmp = t;
             hijack->addReceiver(tmp);
         }
-        
-        vmPtr = rvVM_Initialize(&(cameraConfiguration.stereo.camera[0]), algConfFile.c_str());
+
+#if 0
+        if (cameraConfiguration.cameraType == rvStereo)
+        {
+           int gMinDisparity = 1;
+           int gLevelDisparity = 96;
+           rvDFSParameter dfs_parameter;
+           dfs_parameter.mode = RV_DFS_SPEED;
+           dfs_parameter.filterHeight = 11;
+           dfs_parameter.filterWidth = 15;
+           dfs_parameter.disparity.minDisparity = gMinDisparity;
+           dfs_parameter.disparity.numDisparityLevels = gLevelDisparity;
+           dfs_parameter.doRectification = true;
+
+           dfsPtr = rvDFS_Initialize(cameraConfiguration.stereo.camera[0].pixelWidth,
+              cameraConfiguration.stereo.camera[0].pixelHeight, cameraConfiguration.stereo.camera[0].pixelStride,
+              dfs_parameter, cameraConfiguration.stereo);
+           int pixelNum = cameraConfiguration.stereo.camera[0].pixelWidth * cameraConfiguration.stereo.camera[0].pixelHeight;
+           lImage = new uint8_t[pixelNum];
+           rImage = new uint8_t[pixelNum];
+           depthImageF = new float[pixelNum];
+           depthImageS = new uint16_t[pixelNum];
+
+
+           rvStereoCamera rectCamera = rvDFS_GetRectifiedCameraParameter(dfsPtr);
+           vmPtr = rvVM_Initialize(&rectCamera.camera[0], algConfFile.c_str());
+        }
+        else
+#endif
+        {
+           vmPtr = rvVM_Initialize(&(cameraConfiguration.stereo.camera[0]), algConfFile.c_str());
+        }
 
 #if GDB_DEBUG  //SIGINT would go to gdb but not VM application
         signal(48, Stop);
@@ -301,11 +357,30 @@ void VMSystem::restart()
 }
 
 
-void VMSystem::addDepthImage(const int64_t timestamp, const uint8_t* imageBuf, const uint16_t* depthBuf)
+void VMSystem::addDepthImage(const int64_t timestamp, const uint8_t* imageBuf, const uint16_t* depthBufInput)
 {
     if (VMSystem::systemState == KSLEEPING)
         return;
-    
+
+    const uint16_t* depthBuf;
+#if 0
+    if (depthBufInput == NULL && dfsPtr != nullptr)
+    {
+       int pixelNum = cameraConfiguration.stereo.camera[0].pixelStride * cameraConfiguration.stereo.camera[0].pixelHeight;
+       memcpy(lImage, imageBuf, pixelNum);
+       memcpy(rImage, imageBuf + pixelNum, pixelNum);
+       rvDFS_CalculateDepth(dfsPtr, lImage, rImage, depthImageF);
+       for (size_t i = 0; i < pixelNum; i++)
+          depthImageS[i] = (uint16_t)(depthImageF[i]);
+       cv::Mat depthMat(cameraConfiguration.stereo.camera[0].pixelHeight, cameraConfiguration.stereo.camera[0].pixelStride, CV_16UC1, depthImageS);
+       depthBuf = depthImageS;
+    }
+    else
+#endif
+    {
+       depthBuf = depthBufInput;
+    }
+
     rvVM_AddOneImage(vmPtr, depthBuf, timestamp);
 
     /*************FOR USERS:***************************************************/
@@ -347,6 +422,21 @@ void VMSystem::addDepthImage(const int64_t timestamp, const uint8_t* imageBuf, c
 #ifndef __linux__
         cv::imshow("grid map", gridImage);
         cv::waitKey(1);
+#endif
+#ifdef ROS_BASED
+	  sensor_msgs::msg::Image::SharedPtr img;
+      img = cv_bridge::CvImage(
+         std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, gridImage ).toImageMsg();
+
+      rclcpp::Clock ros_clock( RCL_ROS_TIME );
+
+      img->width = gridWidth;
+      img->height = gridHeight;
+      img->is_bigendian = false;
+      img->step = gridWidth;
+      img->header.frame_id = "occupancy_image";
+      img->header.stamp = ros_clock.now();
+      occupancy_img_pub.publish( img );
 #endif
     }
     /************finish getting grid map***************************************/
