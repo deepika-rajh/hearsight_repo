@@ -19,7 +19,7 @@ set( RV_VIO_SIM_SRC
      ../../simulation/src/TUMRGBDReader.cpp
      ../../simulation/src/EurocReader.cpp
      ../../simulation/src/OpenLORISReader.cpp
-     ../../simulation/src/OpenLORISReader_D435i.cpp 
+     ../../simulation/src/OpenLORISReader_D435i.cpp
      ../../simulation/src/OpenLORISReader_T265.cpp
      ../../simulation/src/SlamDataReader.cpp
      ../../simulation/src/WheelReader.cpp

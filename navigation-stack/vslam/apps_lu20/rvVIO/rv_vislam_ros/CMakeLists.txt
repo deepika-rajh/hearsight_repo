@@ -22,6 +22,8 @@ add_definitions(-DWHEEL_SUPPORTED)
 add_definitions(-DOPENCV_ENABLED)
 add_definitions(-DIMU_SUPPORTED)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+
 set(OpenCV_DIR "/usr/lib/aarch64-linux-gnu/cmake/opencv4/")
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})

@@ -66,7 +66,7 @@ void Euler2Quaternion( double roll, double pitch, double yaw, double quaternion[
 
 
 void Matrix2Quaternion( const float32_t a[3][4], float& qw, float& qx, float& qy, float& qz )
-{  
+{
    // I removed + 1.0f; see discussion with Ethan
    float trace = a[0][0] + a[1][1] + a[2][2];
    if( trace > 0 )
