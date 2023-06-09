@@ -51,7 +51,7 @@ void InputMonoCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedPtr
         return;
     }
 
-    printf("call callback\n");
+    //printf("call callback\n");
     rclcpp::Time t = image->header.stamp;
     cvtColor(cv_ptrRGB->image, grayImage, cv::COLOR_RGB2GRAY);
     callback_(t.nanoseconds(), grayImage.data, (const uint16_t *)NULL);

@@ -337,7 +337,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       return;
    }
 
-   printf("got an image\n");
+   //printf("got an image\n");
    if( !isInitDone )
    {
       system("echo vSLAM Initialization is finished > /dev/kmsg");
@@ -400,6 +400,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    {
        pub_camera_raw_pose(rawPose);
    }
+   printf("Key Frame number %d, Tracking Quality %d\n", status._KeyframeNum, rawPose.poseQuality);
 #endif
    viz->ShowPoints( rawPose.poseQuality, "points", status );
    if( status._ObservationBuf )
