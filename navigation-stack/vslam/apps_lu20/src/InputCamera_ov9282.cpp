@@ -304,6 +304,10 @@ GstFlowReturn InputCamera_OV9282::new_sample_cb (GstElement *sink, gpointer user
 
     gst_buffer_unmap (buffer, &info);
     gst_sample_unref (sample);
+    #if GST_VERSION_MAJOR >= 1 && GST_VERSION_MINOR > 14
+    gst_sample_set_buffer (sample, NULL);
+    #endif
+
 
     GstClockTime ct2 = gst_clock_get_time(clock);
     gst_object_unref(clock);
