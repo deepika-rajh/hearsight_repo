@@ -33,7 +33,7 @@ class InputMonoCameraROS2: public CameraInterface
 public:
 	using CallbackFunc = std::function<void(const int64_t timestamp, const uint8_t * imageBuf, const uint16_t * depthBuf)>;
 
-	InputMonoCameraROS2(rclcpp::Node::SharedPtr const & node_);
+	InputMonoCameraROS2(rclcpp::Node::SharedPtr const & node_, const std::string & config );
 	~InputMonoCameraROS2();
 
     void addCallback(CameraCallback callback)
@@ -72,6 +72,10 @@ private:
     void callback(const sensor_msgs::msg::Image::ConstSharedPtr& image);
 
     void rgbInfo_callback(const sensor_msgs::msg::CameraInfo::SharedPtr rgbInfo);
+
+	bool ReadCameraConfig( const std::string & filename, rvCameraParams & cameraParams );
+
+	void getCameraSetting(const std::string & distortionModel, const cv::Mat & intrinsics, const cv::Mat & distortion, const cv::Size & imageSize, rvCameraIntrinsic & cameraConfig);
 
     image_transport::Subscriber rgb_sub;
 

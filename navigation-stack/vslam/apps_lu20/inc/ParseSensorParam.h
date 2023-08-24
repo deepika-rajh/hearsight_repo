@@ -13,6 +13,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <string>
 
 bool ParseSensorParam( const std::string & root, const std::string & configFile, rvWheelConfiguration & wheelConf, rvIMUConfiguration & imuConf, rvTargetImage & targetImage);
+bool GetCameraSettingFile( const std::string & root, const std::string & configFile, std::string & cameraSettingFile);
 void ReadMatrix( std::ifstream & file, float * matrix );
 
 #endif //__PARSE_SENSOR_PARAM_H__

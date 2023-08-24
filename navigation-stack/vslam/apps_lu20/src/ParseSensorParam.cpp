@@ -105,6 +105,51 @@ bool ParseSensorParam( const std::string & root, const std::string & configFile,
    return true;
 }
 
+
+bool GetCameraSettingFile( const std::string & root, const std::string & configFile, std::string & cameraSettingFile)
+{
+   std::ifstream cfg( root+configFile, std::ifstream::in );
+   std::string tempRoot = root;
+
+   if( !cfg.is_open() )
+   {
+      printf( "Fail to open configuration file: %s\n", configFile.c_str() );
+      cfg.open( root + "../" + configFile, std::ifstream::in );
+      if( !cfg.is_open() )
+      {
+         printf( "Fail to open configuration file: %s also.\n", ("../" + configFile).c_str() );
+         return false;
+      }
+      tempRoot = root + "../";
+   }
+
+   std::string line;
+   std::string itemName;
+   while( std::getline( cfg, line ) )
+   {
+      if( line.length() == 0 )
+      {
+         continue;
+      }
+      if( line[0] == '#' )
+      {
+         continue;
+      }
+      std::istringstream iss( line );
+      itemName.clear();
+      iss >> itemName;
+	  if( itemName.compare( "Camera" ) == 0 )
+      {
+         iss >> cameraSettingFile;
+      }
+      else if( itemName.compare( "Stereo" ) == 0 )
+      {
+         iss >> cameraSettingFile;
+      }
+  }
+  return true;
+}
+
 void EulerToSO3_0( const float32_t* euler, float32_t* rotation )
 {
    float32_t cr = (float32_t)cos( euler[0] );

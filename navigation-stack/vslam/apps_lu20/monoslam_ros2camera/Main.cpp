@@ -86,10 +86,12 @@ int main( int argc, char** argv )
    system("echo vSLAM Start Initialization > /dev/kmsg");
 #endif
 
+   std::string cameraSettingFile;
    InputWheelROS wheel;
    wheel.addCallback(VSLAMWheel::wheelCallback);
    //start VSLAM system
-   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputMonoCameraROS2>(g_node);
+   GetCameraSettingFile( sensorSetting, "Configuration/vslam.cfg", cameraSettingFile);
+   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputMonoCameraROS2>(g_node, sensorSetting+cameraSettingFile);
    ParseSensorParam(sensorSetting, "Configuration/vslam.cfg", VSLAMSystem::wheelConfiguration, VSLAMSystem::imuConfiguration, VSLAMSystem::targetImage);
 
    std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize( algSetting, output, inputCamera, false);
