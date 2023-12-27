@@ -152,7 +152,7 @@ private:
         // and send velocity commands for turtle2 to reach target_frame
         try
         {
-            rclcpp::Duration transform_tolerance(4000000);
+            rclcpp::Duration transform_tolerance(std::chrono::nanoseconds(4000000));
             transformStamped = tfbuffer_->lookupTransform("map", "base_link", tf2::TimePoint(), tf2::durationFromSec(1.0));
         }
         catch (tf2::LookupException & ex)
