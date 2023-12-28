@@ -203,6 +203,7 @@ Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, const
    return;
 }
 
+#if 0
 void
 Visualiser::ShowGridMap(int64_t timestamp, int poseX, int poseY)
 {
@@ -275,7 +276,7 @@ Visualiser::ShowGridMap(int64_t timestamp, int poseX, int poseY)
 
    return;
 }
-
+#endif
 
 #ifdef OPENCV_ENABLED
 void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t* image, int widthFrame, int heightFrame, const int& pointNum, const rvVISLAMMapPoint* pPoints, cv::Mat& rview)
