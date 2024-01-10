@@ -135,6 +135,14 @@ struct rvCameraParams
 @param cameraInIMU
    Camera pose in IMU coordinate
 ****************************************************************************/
+struct IMUElement
+{
+    float32_t bias[3];
+    float32_t matrix[3][3];
+    float32_t noiseVariances[3];
+    float32_t biasVariances[3];
+};
+
 typedef struct
 {
     bool imuEnabled;
@@ -157,6 +165,24 @@ typedef struct
     bool wheelEnabled;
     rvPose6DRT baselinkInCamera; //also the cross-calibration matrix;
 } rvWheelConfiguration;
+
+
+/************************************************************************//**
+@detailed
+   image size
+@param width
+   Width of the image in pixels
+@param height
+   Height of the image in pixels
+@param stride
+   Stride of the image in pixels
+****************************************************************************/
+typedef struct
+{
+   int             width;
+   int             height;
+   int             stride;
+}rvImageSize;
 
 /************************************************************************//**
 @detailed

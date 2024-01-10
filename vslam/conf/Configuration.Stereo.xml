@@ -8,7 +8,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 <Configuration>
     
   <!--
-  sample configuration file for mvDFS to modify FCVF parameters
+  sample configuration file for rvDFS to modify FCVF parameters
   -->
 
   <Stereo
@@ -19,14 +19,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
   >
       
     <FCVF
-        alpha = ".11"
-        doSubPixelInterp="true"
-        doImgPreFilter="false"
-        doPostFilterMedian="true"
+        boxFilterWidth="16"
+        boxFilterHeight="4"
         postFilterSpeckleMode="1"
-        minDispDiff="2.0"
-        minSpeckleSize="200"
-        medianFilterSize="3"
     />
       
   </Stereo>

@@ -17,7 +17,8 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 namespace rv_dfs
 {
 
-    RV_API std::shared_ptr<DFSBase> CreateDFSbase(const rvDFSMode& dfs_mode);
+    template<typename T>
+    RV_API std::shared_ptr<DFSBase<T>> CreateDFSBase(const rvDFSMode& dfs_mode);
 
 }
 

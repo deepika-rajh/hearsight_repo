@@ -271,16 +271,18 @@ extern "C"
    } rvPose6DYPRT;
 
    //unit: meter
-   struct rvPoint3D {
-       float32_t x;
-       float32_t y;
-       float32_t z;
+   struct rvPoint3D
+   {
+      float32_t x;
+      float32_t y;
+      float32_t z;
    };
 
 
-   struct rvPose6DQT {
-       rvPoint3D robotPos;
-       float32_t rx, ry, rz, rw;
+   struct rvPose6DQT
+   {
+      rvPoint3D robotPos;
+      float32_t rx, ry, rz, rw;
    };
 
 
@@ -328,8 +330,8 @@ extern "C"
   {
       int x;   //unit: pixel
       int y;   //unit: pixel
-      int roiWidth;
-      int roiHeight;
+      int width;
+      int height;
   } rvRoi2D;
 
 #ifdef __cplusplus

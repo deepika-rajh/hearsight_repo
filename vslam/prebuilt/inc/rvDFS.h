@@ -16,6 +16,10 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 @detailed
    Robot Vision,
    Depth From Stereo (DFS)
+
+@internal
+   Copyright 2021-2023 Qualcomm Technologies, Inc.  All rights reserved.
+   Confidential & Proprietary.
 *******************************************************************************/
 
 
@@ -24,6 +28,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 //==============================================================================
 
 #include <rv.h>
+#include <rvCamera.h>
 #include <array>
 
 //==============================================================================
@@ -39,66 +44,203 @@ extern "C"
 
     typedef enum
     {
-        RV_DFS_CVP = 0,                         //CVP hardware mode, only valid with QRB5165 and QCS8550
-        RV_DFS_COVERAGE,                        //CPU solution, coverage mode
-        RV_DFS_SPEED,                           //OpenCL solution, speed mode, fastest mode
-        RV_DFS_ACCURACY,                        //CPU solution, accuracy mode
-        RV_DFS_NORMAL,                         //OpenCL solution, balance mode, balance between coverage and speed
-    }rvDFSMode;
+        RV_DFS_COVERAGE=0,                                  //CPU solution, coverage mode
+        RV_DFS_BALANCE,                                     //OpenCL solution, balance mode, balance between coverage and speed
+        RV_DFS_SPEED,                                       //OpenCL solution, speed mode, fastest mode
+        RV_DFS_CVP,                                         //CVP hardware mode, only valid with QRB5165 and QCS8550
+    } rvDFSMode;
 
-    typedef struct _rvDFSDisparity
+    typedef enum
     {
-        int minDisparity;                       //Minimum disparity level to search
-        int numDisparityLevels;                 //Number of disparity levels
-    }rvDFSDisparity;
+        RV_DFS_PP_BASIC=0,                                      // basic mode
+        RV_DFS_PP_MEDIUM,                                       // advanced mode
+        RV_DFS_PP_STRONG,                                       // strong mode, need specific customer code
+        RV_DFS_PP_SUPREME,                                      // supreme mode, need specific customer code
+    } rvDFSPPLevel;
 
-    typedef struct _rvDFSDepthRange
+    typedef struct
     {
-        float minDepth;                         //Minimum depth to search
-        float maxDepth;                         //Maximum depth to search
-    }rvDFSDepthRange;
+        int32_t minDisparity;                               //Minimum disparity level to search
+        int32_t numDisparityLevels;                         //Number of disparity levels
+    } rvDFSDisparity;
 
-    typedef struct _rvDFSParameter
+    typedef struct
     {
-        rvDFSMode   mode;                       //DFS mode
-        rvDFSDisparity  disparity;              //Number of disparity levels
-        rvDFSDepthRange depthRange;             //Depth range to search, user must input camera extrinsic parameters
-        int filterWidth=0;                      //Width of filter
-        int filterHeight=0;                     //Height of filter
-        bool doRectification=false;             //Indicate if rectification is needed before DFS
-        bool useDisp=true;                      //The algorithm searches based on disparity range. Users can provide either disparity or depthRange and set this item to indicate which one will be used.
-    }rvDFSParameter;
+        int32_t minDepth;                                   //Minimum depth to search, unit: mm
+        int32_t maxDepth;                                   //Maximum depth to search, unit: mm
+    } rvDFSDepthRange;                                      //Todo: determine the working disparity range by [minDepth, inf]. maxDepth only used to generate(filter) depth output
 
+    typedef struct
+    {
+        uint32_t        version;                            //API version
+        uint32_t        paramSize;                          //Parameter size
+        rvImageSize     inputSize;                          //Input image size
+        rvImageFormat   imgFormat = Y_ONLY_FORMAT;          //0:grayscale by default, we don't support other image format yet
+        rvImageSize     outputSize;                         //Output size, different input and output size are supported by Speed and Normal modes
+        rvDFSMode       mode;                               //DFS mode
+        rvDFSDisparity  disparity;                          //Number of disparity levels
+        rvDFSDepthRange depthRange;                         //Depth range to search, user must input camera extrinsic parameters
+        int32_t         filterWidth = 0;                    //Todo: delete
+        int32_t         filterHeight = 0;
+        int32_t         maxHdrFrames = 0;                   //The max image pairs will be processed by HDR, up to 3, 
+        bool            doRectification = false;            //Indicate if rectification is needed before DFS
+        bool            useDisp = true;                     //The algorithm searches based on disparity range. Users can provide either disparity or depthRange and set this item to indicate which one will be used.
+        bool            latestOnly=true;                    //Only valid for multiThreadDFS. We suggest to process the latest frames only for online application. Offline application, we suggest to set it FALSE so that every frames will be processed.
+        bool            useIONMem = false;                  //Use ION memory or not, it may save one copy if input images are from ISP and in ION memory, only valid for Balance and Speed mode
+        rvDFSPPLevel    ppLevel = RV_DFS_PP_BASIC;          //Postprocessing level
+        int32_t         extInfoSize;                        //Extended information size in bytes
+        char*           extInfo = nullptr;                  //Pointer to extended information, yml/json
+    } rvDFSParameter;
 
-    //point cloud data definition is 
-    //X axis, into the screen
-    //Y axis, from right to left
-    //Z axis, from bottom to top
-    typedef std::vector<std::array<float,3>> PointCloudType;
+    //Not supported yet
+    typedef struct
+    {
+        uint32_t        version;                            //API version
+        uint32_t        paramSize;                          //Parameter size
+        float*          extrinsic = nullptr;                //Input (4x4 matrix?) ==> for rgb-d fusion
+        rvImageSize     imageSize;                          //Input image size
+        rvImageFormat   imgFormat;                          //Image format
+    } rvRGBDParameter;    
 
-    typedef std::vector<std::array<float,6>> PointCloudColorType;
+    typedef struct
+    {
+        rvRoi2D*         roi = nullptr;                     //Region of intereset, which is only applicable to speed and balance modes. 
+        rvDFSDisparity*  disparity = nullptr;               //DFS disparity parameters, including min and levels, numDisparityLevels = 0 indicates re-use current disparity parameters
+        rvDFSPPLevel*    ppLevel = nullptr;                 //Runtime postprocessing level;
+    } rvDFSParamRuntime;
+
+    typedef struct
+    {
+        uint32_t            version;                         //0x00010000 (1.0)
+        uint32_t            paramSize;                       //Parameter size
+        uint32_t            numParams = 0;                   //How many rvDFSParamRuntime will be passed to DFS algorithm
+        rvDFSParamRuntime*  dfsParam = nullptr;              //DFS parameters which can be changed online, can be nullptr if no changes
+        float*              poseCameraInWorld = nullptr;     //Camera-in-world transformation matrix. The matrix is 3 x 4, which represents [R | T]
+        struct
+        {
+            uint64_t          imgTimestamp;                 //Time stamp of input image pair that are supposed to be synchronized.
+            uint8_t *         imgLeft = nullptr;            //Input left image
+            int32_t           ionFDLeft = -1;               //ION file descriptor of left image, can be ignored for non-ION inputs
+            uint8_t *         imgRight = nullptr;           //Input right image
+            int32_t           ionFDRight = -1;              //ION file descriptor of right image, can be ignored for non-ION inputs
+        } input;        
+    } rvDFS_InputParam_V1_t;
+
+// todo: add a simple in. (del 98-100)
+
+    typedef struct
+    {
+        uint32_t            version;                        //0x00020000 (2.0)
+        uint32_t            paramSize;                      //Parameter size
+        uint32_t            numParams = 0;                  //How many rvDFSParamRuntime will be passed to DFS algorithm
+        rvDFSParamRuntime*  dfsParam = nullptr;             //DFS parameters which can be changed online, can be nullptr if no changes
+        float*              poseCameraInWorld = nullptr;    //Camera-in-world transformation matrix. The matrix is 3 x 4, which represents [R | T]
+        struct
+        {
+            uint64_t      imgTimestamp;                     //Time stamp of input image pair that are supposed to be synchronized.
+            uint32_t      imgFrames;                        //How many image pairs will be used in HDR, up to 3, 0:reuses previous frame
+            uint8_t *     imgLeft[3]{nullptr};              //Input left images
+            int32_t       ionFDLeft[3]{-1};                 //ION file descriptor of left image, can be ignored for non-ION inputs
+            uint8_t *     imgRight[3]{nullptr};             //Input right images
+            int32_t       ionFDRight[3]{-1};                //ION file descriptor of right image, can be ignored for non-ION inputs
+	    } input;
+    } rvDFS_InputParam_V2_t;
+
+    //V3 is not supported yet
+    typedef struct
+    {
+        uint32_t            version;                        //0x00030000 (3.0)
+        uint32_t            paramSize;
+        uint32_t            numParams = 0;                  //How many rvDFSParamRuntime will be passed to DFS algorithm
+        rvDFSParamRuntime*  dfsParam = nullptr;             //DFS parameters which can be changed online, can be nullptr if no changes
+        float*              poseCameraInWorld = nullptr;    //Camera-in-world transformation matrix. The matrix is 3 x 4, which represents [R | T]
+        struct
+        {
+            uint64_t      imgTimestamp;                     //Time stamp of left image, DFS output will use this time stamp
+            uint32_t      imgFrames;                        //How many image pairs will be used in HDR, up to 3
+            uint8_t *     imgLeft[3]{nullptr};              //Input left images
+            int32_t       ionFDLeft[3]{-1};                 //ION file descriptor of left image, can be ignored for non-ION inputs
+            uint8_t *     imgRight[3]{nullptr};             //Input right images
+            int32_t       ionFDRight[3]{-1};                //ION file descriptor of right image, can be ignored for non-ION inputs
+	    } input;
+        struct 
+        {
+            uint64_t      imgTimestamp;                     //Time stamp of color image
+            uint32_t      imgFrames;                        //How many image pairs will be used in HDR, up to 3
+            uint8_t *     img[3]{nullptr};                  //Input image
+            int32_t       ionFDColor[3];                    //ION file descriptor of color image, can be ignored for non-ION inputs
+        } color;
+    } rvDFS_InputParam_V3_t;
+
+    // include dim, roi as well so that rvDF_OutputParam_V1_t alone can be passed over to following layers
+    typedef struct
+    {
+        uint32_t          version;                          //0x10010000 (1.0) by default
+        uint32_t          paramSize;
+        struct
+        {
+            uint32_t      width, height;
+        } dim;                                              //Image dimension
+        rvRoi2D           roi;                              //Region of interest
+        uint64_t          imgTimestamp;                     //Time stamp of input left image
+        void*             pUserContext = nullptr;           //Pointer to user's own context
+        uint8_t*          imgL = nullptr;                   //Output, fill nullptr if not needed, hdr image if applicable
+        uint8_t*          imgR = nullptr;                   //Output, fill nullptr if not needed, hdr image if applicable
+        uint8_t*          rectL = nullptr;                  //Output, fill nullptr if not needed
+        uint8_t*          rectR = nullptr;                  //Output, fill nullptr if not needed
+        uint32_t          mapDataType;                      //Disparity & depth map (0 : float, 1 : int16, 2 : int32, etc)
+        void*             mapOfDisparity = nullptr;         //Output, fill nullptr if not needed
+        void*             mapOfDepth = nullptr;             //Output, fill nullptr if not needed
+        uint32_t          numPoints;                        //Number of 3d-points and colors
+        void*             pointBuffer = nullptr;            //Output of {x,y,z}, fill nullptr if not needed
+    } rvDFS_OutputParam_V1_t;
+
 
     //------------------------------------------------------------------------------
     /// @detailed
     ///      Initialize rvDFS
     /// @param dfs_mode
     ///   DFS mode
-    /// @param width
-    ///   Width of input images
-    /// @param height
-    ///   Height of input images
-    /// @param stride
-    ///   Stride of input images
     /// @param dfs_parameter
-    ///   DFS parameters
+    ///   DFS parameters with extended information
     /// @param stereo_parameter
     ///   Intrinsic and extrinsic parameters of stereo camera
     /// @return
     ///   Pointer to DFS object
     ///   Returns NULL if failed
     //------------------------------------------------------------------------------
-    RV_API rvDFS* rvDFS_Initialize(int width, int height, int stride,
-        const rvDFSParameter dfs_parameter, const rvStereoCamera stereo_parameter);
+    RV_API rvDFS* rvDFS_InitializeF32(const rvDFSParameter dfs_parameter, const rvStereoCamera stereo_parameter);
+    RV_API rvDFS* rvDFS_InitializeU16(const rvDFSParameter dfs_parameter, const rvStereoCamera stereo_parameter);
+
+
+    //------------------------------------------------------------------------------
+    /// @detailed
+    ///     Run rvDFS and get disparity/depth/point cloud/rectified images
+    /// @param pHandle
+    ///   Handle of rvDFS
+    /// @param in
+    ///   Input data
+    /// @param out
+    ///   Output data
+    /// @return
+    ///   Returns True if success or False if failure
+    //------------------------------------------------------------------------------
+    RV_API bool rvDFS_ComputeF32(rvDFS* pHandle, const void* in, void* out);
+    RV_API bool rvDFS_ComputeU16(rvDFS* pHandle, const void* in, void* out);
+
+
+    //------------------------------------------------------------------------------
+    /// @detailed
+    ///     Update new stereo camera intrinsic and extrinsic parameters
+    /// @param pHandle
+    ///   Handle of rvDFS
+    /// @param param
+    ///   New stereo camera intrinsic and extrinsic parameters
+    /// @return
+    ///   Returns True if success or False if failure
+    //------------------------------------------------------------------------------
+    RV_API bool rvDFS_UpdateStereoCameraParamF32(rvDFS* pHandle, rvStereoCamera param);
+    RV_API bool rvDFS_UpdateStereoCameraParamU16(rvDFS* pHandle, rvStereoCamera param);
 
 
     //------------------------------------------------------------------------------
@@ -109,399 +251,29 @@ extern "C"
     /// @return 
     ///   return rvStereoCamera parameters
     //------------------------------------------------------------------------------
-    rvStereoCamera RV_API rvDFS_GetRectifiedCameraParameter(rvDFS* pHandle);
+    RV_API rvStereoCamera rvDFS_GetRectCameraParamF32(rvDFS* pHandle);
+    RV_API rvStereoCamera rvDFS_GetRectCameraParamU16(rvDFS* pHandle);
 
 
     //------------------------------------------------------------------------------
     /// @detailed
-    ///     Run rvDFS and get disparity map
+    ///     Run rvDFS and convert depth map to point cloud
     /// @param pHandle
     ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param disparityMap
-    ///   Disparity map pointer for output
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDisparity(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparityMap);
-
-        
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get disparity map with new disparity range
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param disparityMap
-    ///   Disparity map pointer for output
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDisparityWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparityMap, rvDFSDisparity* dfs_disparity);
-    
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get depth map
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param depthMap
-    ///   Depth map pointer for output
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDepth(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* depthMap);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get depth map with new disparity range
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param depthMap
-    ///   Depth map pointer for output
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDepthWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* depthMap, rvDFSDisparity* dfs_disparity);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get point cloud
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param pointCloud
-    ///   Point cloud pointer for output
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculatePointCloud(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get point cloud with new disparity range
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param pointCloud
-    ///   Point cloud pointer for output
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculatePointCloudWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud, rvDFSDisparity* dfs_disparity);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get point cloud fused with rectified left gray image
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param pointCloud
-    ///   Point cloud color pointer for output
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculatePointCloudColor(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudColorType* pointCloud);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get point cloud fused with rectified left gray image with new disparity range
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param pointCloud
-    ///   Point cloud color pointer for output
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculatePointCloudColorWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudColorType* pointCloud, rvDFSDisparity* dfs_disparity);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get disparity/depth/point cloud
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param disparities
-    ///   Disparity map pointer for output
     /// @param depth
-    ///   Depth map pointer for output
-    /// @param pc
-    ///   Point cloud pointer for output
-    /// @param pcc
-    ///   point cloud color pointer to pointer for output. Another format.
+    ///   depth map pointer
+    /// @param pointCloud
+    ///   point cloud pointer to pointer for output
+    /// @param param
+    ///   rectified stereo camera parameters
+    /// @param poseCameraInWorld
+    ///   Camera-in-world transformation matrix. The matrix is 3 x 4, which represents [R | T]
     /// @return
     ///   Returns True if success or False if failure
     //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDispDepthPointCloud(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudType* pc, PointCloudColorType* pcc);
+    RV_API bool rvDFS_Depth2PointCloudF32(rvDFS* pHandle, const float* depth, void* pointCloud, rvStereoCamera* param, float* poseCameraInWorld);
+    RV_API bool rvDFS_Depth2PointCloudU16(rvDFS* pHandle, const uint16_t* depth, void* pointCloud, rvStereoCamera* param, float* poseCameraInWorld);
 
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Run rvDFS and get disparity/depth/point cloud with new disparity range
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param disparityMap
-    ///   Disparity map pointer for output
-    /// @param depthMap
-    ///   Depth map pointer for output
-    /// @param pc
-    ///   Point cloud pointer for output
-    /// @param pcc
-    ///   point cloud color pointer to pointer for output. Another format.
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDispDepthPointCloudWithNewDisparityRange(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, float* disparities, float* depth, PointCloudType* pc, PointCloudColorType* pcc, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///   run rvDFS and get all outputs including rectified left image, disparity, depth, point cloud data with pc and pcc formats.
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL
-    ///   Left image pointer
-    /// @param imgR
-    ///   Right image pointer
-    /// @param disparities
-    ///   Disparity map pointer for output
-    /// @param depth
-    ///   Depth map pointer for output
-    /// @param pc
-    ///   Point cloud pointer for output
-    /// @param pcc
-    ///   point cloud color pointer to pointer for output. Another format.
-    /// @param rectLeft
-    ///   rectified left image for output
-    /// @param rectRight
-    ///   rectified right image for output
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return
-    ///   Returns True if success or False if failure
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_CalculateDfsAllInfo(uint8_t* imgL, uint8_t* imgR, float* disp, float* depth, PointCloudType* pc, PointCloudColorType* pcc, uint8_t* rectL, uint8_t* rectR, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     Get point cloud result under user-defined coordinate.
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL 
-    ///     Input left image pointer
-    /// @param imgR 
-    ///     Input right image pointer
-    /// @param pointCloud 
-    ///     Output point cloud in user coordinate.
-    /// @param U2CMat 
-    ///     Transform mat, shape 3*4. 
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return 
-    ///     Return true if success, otherwise false.
-    //------------------------------------------------------------------------------
-        bool RV_API rvDFS_CalculatePointCloudInUserCoordinate(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud, const float* U2CMat, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     Get point cloud result under user-defined coordinate.
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgL 
-    ///     Input left image pointer
-    /// @param imgR 
-    ///     Input right image pointer
-    /// @param pointCloud 
-    ///     Output point cloud color data in user coordinate.
-    /// @param U2CMat 
-    ///     Transform mat, shape 3*4. 
-    /// @param dfs_disparity
-    ///   DFS disparity parameters pointer, can be null
-    /// @return 
-    ///     Return true if success, otherwise false.
-    //------------------------------------------------------------------------------
-        bool RV_API rvDFS_CalculatePointCloudColorInUserCoordinate(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud, const float* U2CMat, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     Get point cloud result under user-defined coordinate.
-    /// @param imgL 
-    ///     Input left image pointer
-    /// @param imgR 
-    ///     Input right image pointer
-    /// @param pointCloud 
-    ///     Output point cloud in user coordinate.
-    /// @param offset3
-    ///     xyz offset from user coordinate to left camera coordinate. len is 3. 
-    //------------------------------------------------------------------------------
-        bool RV_API rvDFS_CalculatePointCloudAddOffset3(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudType* pointCloud, const float* offset3, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     Get point cloud result under user-defined coordinate.
-    /// @param imgL 
-    ///     Input left image pointer
-    /// @param imgR 
-    ///     Input right image pointer
-    /// @param pointCloud 
-    ///     Output point cloud color data in user coordinate.
-    /// @param offset3 
-    ///     xyz offset from user coordinate to left camera coordinate. len is 3. 
-    //------------------------------------------------------------------------------
-        bool RV_API rvDFS_CalculatePointCloudColorAddOffset3(rvDFS* pHandle, uint8_t* imgL, uint8_t* imgR, PointCloudColorType* pointCloud, const float* offset3, rvDFSDisparity* dfs_disparity);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     transform point cloud data from source inPC to dst outPC.
-    /// @param inPC
-    ///     Input point cloud data.
-    /// @param outPC
-    ///     Output point cloud data.
-    /// @param U2CMat 
-    ///     Transform mat from inPC to outPC. Mat shape is 3*4.
-    //------------------------------------------------------------------------------
-        bool RV_API rvDFS_TransformPointCloud(rvDFS* pHandle, PointCloudType* inPC, PointCloudType* outPC, const float* U2CMat);
-
-    //------------------------------------------------------------------------------
-    /// @brief 
-    ///     transform point cloud data from source inPCC to dst outPCC.
-    /// @param inPCC 
-    ///     Input point cloud color data.
-    /// @param outPCC 
-    ///     Output point cloud color data.
-    /// @param U2CMat 
-    ///     Transform mat from inPCC to outPCC. Mat shape is 3*4.
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_TransformPointCloudColor(rvDFS* pHandle, PointCloudColorType* inPCC, PointCloudColorType* outPCC, const float* U2CMat);
-
-    /// @brief 
-    ///     get point cloud result by disparity input.
-    /// @param pHandle
-    ///     Handle of rvDFS
-    /// @param disparities
-    ///     input float disparities
-    /// @param pointCloud
-    ///     output point cloud result.
-    /// @return
-    ///     Return True if success or False if it fails.
-    bool RV_API rvDFS_Disparity2PointCloud(rvDFS* pHandle, float* disparities, PointCloudType* pointCloud);
-
-    /// @brief 
-    ///     get point cloud color result by disparity input.
-    /// @param pHandle
-    ///     Handle of rvDFS
-    /// @param rectL
-    ///     input rect left image 
-    /// @param disparities
-    ///     input float disparities
-    /// @param pointCloud
-    ///     output point cloud color result.
-    /// @return
-    ///     Return True if success or False if it fails.
-    bool RV_API rvDFS_Disparity2PointCloudColor(rvDFS* pHandle, uint8_t* rectL, float* disparities, PointCloudColorType* pointCloud);
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Convert depth map to point cloud
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param depthMap
-    ///   Depth map pointer
-    /// @param pointCloud
-    ///   Point cloud pointer for output
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_Depth2PointCloud(rvDFS* pHandle, float* depthMap, PointCloudType* pointCloud);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Convert depth map to point cloud color
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgRectL
-    ///   rectified left image pointer
-    /// @param depthMap
-    ///   Depth map pointer
-    /// @param pointCloud
-    ///   Point cloud color pointer for output
-    //------------------------------------------------------------------------------
-    bool RV_API rvDFS_Depth2PointCloudColor(rvDFS* pHandle, uint8_t* imgRectL, float* depthMap, PointCloudColorType* pointCloud);
-
-
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Set region of interest
-    /// @param X
-    ///   Upper left point coordinate X
-    /// @param Y
-    ///   Upper left point coordinate Y
-    /// @param width
-    ///   width of the region
-    /// @param height
-    ///   height of the region
-    //------------------------------------------------------------------------------
-    void RV_API rvDFS_SetROI(rvDFS* pHandle, int X, int Y, int width, int height);
-        
-        
-    //------------------------------------------------------------------------------
-    /// @detailed
-    ///     Get rectified left and right images
-    /// @param pHandle
-    ///   Handle of rvDFS
-    /// @param imgRectL
-    ///   Left rectified image pointer
-    /// @param imgRectR
-    ///   Right rectified image pointer
-    //------------------------------------------------------------------------------
-    void RV_API rvDFS_GetRectImages(rvDFS* pHandle, uint8_t* imgRectL, uint8_t* imgRectR);
 
     //------------------------------------------------------------------------------
     /// @detailed
@@ -509,8 +281,8 @@ extern "C"
     /// @param pHandle
     ///   Handle of rvDFS
     //------------------------------------------------------------------------------
-    void RV_API rvDFS_Deinitialize(rvDFS* pHandle);
-
+    RV_API void rvDFS_DeinitializeF32(rvDFS* pHandle);
+    RV_API void rvDFS_DeinitializeU16(rvDFS* pHandle);
 
 
 #ifdef __cplusplus
