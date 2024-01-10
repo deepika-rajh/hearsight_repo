@@ -10,6 +10,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include <mutex>
 #include <gst/gst.h>
+#include <memory>
 
 #include "CameraInterface.h"
 #include "rvCamera.h"
