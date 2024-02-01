@@ -1,0 +1,35 @@
+%YAML:1.0
+---
+Camera_Matrix1: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 425.12006, 0., 395.05651, 0.,
+       425.12006,  241.35561, 0., 0., 1. ]
+Distortion_Coefficients1: !!opencv-matrix
+   rows: 1
+   cols: 8
+   dt: d
+   data: [ 0.46287192, -0.033519585, 0.00, 0.00, -0.0032569614, 0.85317725, 0.050325843, -0.016983619 ]
+Camera_Matrix2: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 426.17219, 0., 351.52183, 0.,
+       426.17219,  250.58302, 0., 0., 1. ]
+Distortion_Coefficients2: !!opencv-matrix
+   rows: 1
+   cols: 8
+   dt: d
+   data: [ 0.38087357, -0.052415356, 0.00, 0.00, -0.0030967598, 0.77160633, 0.0011255942, -0.01852593 ]
+R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 0.99994382, -0.00091076869, -0.010560296, 0.00090487737, 0.99999943, -0.00056263909, 0.010560803, 0.00055305171, 0.99994408]
+T: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [ -120.56733, -6.5327291e-02, -0.18010814 ]
+Image_Size: [ 752, 480 ]

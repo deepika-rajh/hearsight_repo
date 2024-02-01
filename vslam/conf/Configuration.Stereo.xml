@@ -1,0 +1,30 @@
+<!--
+Copyright (c) 2021-2022 Qualcomm Technologies, Inc.
+All Rights Reserved.
+Confidential and Proprietary - Qualcomm Technologies, Inc.
+-->
+
+<?xml version='1.0' encoding='utf-8' ?>
+<Configuration>
+    
+  <!--
+  sample configuration file for rvDFS to modify FCVF parameters
+  -->
+
+  <Stereo
+    maxDepthBaselineRatio="50"
+    minDisparity="1"
+    numDisparityLevels="96"
+    postProcessUnit="CPU"
+  >
+      
+    <FCVF
+        boxFilterWidth="16"
+        boxFilterHeight="4"
+        postFilterSpeckleMode="1"
+    />
+      
+  </Stereo>
+
+</Configuration>
+  
