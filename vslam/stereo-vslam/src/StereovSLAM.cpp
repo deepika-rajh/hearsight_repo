@@ -1,3 +1,10 @@
+/*****************************************************************************
+@copyright
+Copyright (c) 2023-2024 Qualcomm Technologies, Inc.
+All Rights Reserved.
+Confidential and Proprietary - Qualcomm Technologies, Inc.
+*******************************************************************************/
+
 #include <iostream>
 #include "InputStereoCameraROS2.h"
 

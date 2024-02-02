@@ -1,3 +1,7 @@
+# Copyright (c) 2023-2024 Qualcomm Technologies, Inc.
+# All Rights Reserved.
+# Confidential and Proprietary - Qualcomm Technologies, Inc.
+
 import os
 
 from ament_index_python.packages import get_package_share_directory

@@ -1,5 +1,6 @@
-# Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
-# SPDX-License-Identifier: Qualcomm-Technologies-Inc.-Proprietary
+# Copyright (c) 2023-2024 Qualcomm Technologies, Inc.
+# All Rights Reserved.
+# Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 import os
 
