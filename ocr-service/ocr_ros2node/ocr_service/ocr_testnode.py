@@ -21,8 +21,8 @@ class NodePublisher(Node):
 def main(args=None):
     rclpy.init(args=None)
     parser = argparse.ArgumentParser()
-    parser.add_argument('--topic', type=String, default="test")
-    parser.add_argument('--picture', type=String, default="/tmp/data.png")
+    parser.add_argument('--topic', type=str, default="test")
+    parser.add_argument('--picture', type=str, default="/tmp/data.png")
     args = parser.parse_args()
     node = NodePublisher("ocr_testnode")
     image_pub = node.create_publisher(Image, args.topic , 10)
