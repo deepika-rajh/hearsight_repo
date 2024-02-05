@@ -1,0 +1,14 @@
+# Copyright (c) 2024 Qualcomm Technologies, Inc.
+# All Rights Reserved.
+# Confidential and Proprietary - Qualcomm Technologies, Inc.
+[Unit]
+Description=sensor service
+SourcePath=/sbin/start-stop-daemon
+
+[Service]
+Type=forking
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+ExecStart=start-stop-daemon -S -b -x /sbin/sensor_service
+ExecStop=start-stop-daemon -K -n /sbin/sensor_service
