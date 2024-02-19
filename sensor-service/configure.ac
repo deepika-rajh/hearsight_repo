@@ -1,0 +1,67 @@
+# -*- Autoconf -*-
+# configure.ac -- Autoconf script for sensors
+#
+# Process this file with autoconf to produce a configure script
+# Requires autoconf tool later than 2.61
+AC_PREREQ([2.69])
+AC_INIT([sensors-service], 1.0.0)
+AM_INIT_AUTOMAKE([foreign subdir-objects])
+AM_MAINTAINER_MODE
+
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AM_PROG_CC_C_O
+AC_PROG_CXX
+AC_PROG_LIBTOOL
+AC_PROG_AWK
+AC_PROG_CPP
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+PKG_PROG_PKG_CONFIG
+
+AC_CHECK_LIB([bsd], [main])
+
+AC_CHECK_PROG([PROTOC], [protoc], [protoc])
+AC_PATH_PROG([PROTOCPATH], [protoc])
+AC_SUBST(PROTOC)
+
+PKG_CHECK_MODULES([PROTOBUF], [protobuf])
+AC_SUBST([PROTOBUF_CFLAGS])
+AC_SUBST([PROTOBUF_LIBS])
+AC_SUBST(PROTOBUF_VERSION)
+
+PKG_CHECK_MODULES([SENSORSEE], [sensors-see])
+AC_SUBST([SENSORSEE_CFLAGS])
+AC_SUBST([SENSORSEE_LIBS])
+
+PKG_CHECK_MODULES([QMIFRAMEWORK], [qmi-framework])
+AC_SUBST([QMIFRAMEWORK_CFLAGS])
+AC_SUBST([QMIFRAMEWORK_LIBS])
+
+AM_CONDITIONAL(USE_GLIB, test "x${with_glib}" = "xyes")
+
+AC_ARG_ENABLE(sns-direct-channel,
+        AS_HELP_STRING([--enable-sns-direct-channel], [enables sensors direct channel]),
+        [sns_direct_channel_support="yes"],
+        [sns_direct_channel_support="no"])
+
+if test "x${sns_direct_channel_support}" = "xyes"; then
+  CFLAGS="${CFLAGS} -DSNS_SUPPORT_DIRECT_CHANNEL"
+  CPPFLAGS="${CPPFLAGS} -DSNS_SUPPORT_DIRECT_CHANNEL"
+fi
+
+AM_CONDITIONAL([ENABLE_SNS_DIRECT_CHANNEL], [test "x${sns_direct_channel_support}" = "xyes"])
+
+AC_SUBST([CFLAGS])
+AC_SUBST([CPPFLAGS])
+AC_SUBST([CC])
+
+AC_CONFIG_FILES([
+        Makefile
+        ])
+AC_OUTPUT
