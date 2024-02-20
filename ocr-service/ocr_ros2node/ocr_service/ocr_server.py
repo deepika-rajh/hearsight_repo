@@ -39,13 +39,13 @@ class OcrProcess(Node):
         self.create_subscription(Image, image_node, self.get_res, 10)
         self.publisher = self.create_publisher(String, image_node+"_ocr", 10)
         self.get_logger().info("init image Subscriber %s" % name)
-        self.timer = threading.Timer(10.0, self.timer_callback)
-        self.timer.start()
+        #self.timer = threading.Timer(10.0, self.timer_callback)
+        #self.timer.start()
 
-    def process_function(self):
-        self.get_logger().info('I heard: "%s"' % msg.data)
+    def process_function(self,msg):
+        #self.get_logger().info('I heard: "%s"' % msg.data)
         # Reset the timer every time a message is received
-        get_res(self,self.data)
+        self.get_res(msg.data)
         self.timer.cancel()
         self.timer = threading.Timer(10.0, self.timer_callback)
         self.timer.start()
@@ -70,16 +70,16 @@ class OcrProcess(Node):
                 time.sleep(0.1)
 
     def get_res(self ,data):
-        self.get_logger().info("translate image")
-        self.timer.cancel()
-        self.timer = threading.Timer(10.0, self.timer_callback)
-        self.timer.start()
+        self.get_logger().debug("translate image")
+        #self.timer.cancel()
+        #self.timer = threading.Timer(10.0, self.timer_callback)
+        #self.timer.start()
         rgb = bridge.imgmsg_to_cv2(data, "rgb8")
         img = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
 
         if not Debug :
             results = pytesseract.image_to_string(img)
-            print(results)
+            self.get_logger().debug(results)
             msg = String()
             msg.data = str(results)
             self.publisher.publish(msg)
@@ -130,7 +130,7 @@ class OcrService(Node):
         node = OcrProcess(node_name,image_node)
         executor_node = MultiThreadedExecutor()
         rclpy.spin(node, executor=executor_node)
-        rclpy.shutdown()
+        #rclpy.shutdown()
 
 
 
