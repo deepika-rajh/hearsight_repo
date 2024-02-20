@@ -20,6 +20,7 @@ InputRGBDCameraROS2::InputRGBDCameraROS2(rclcpp::Node::SharedPtr const &node_, c
     cameraParams.cameraType = rvGrayDepth;
     if (ReadCameraConfig(config, cameraParams))
     {
+        printf("load camera parameter successfully\n");
         gotCameraPara = true;
         rgbInfoSub = NULL;
         rgb_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, "/camera/color/image_raw");

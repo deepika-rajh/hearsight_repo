@@ -13,6 +13,8 @@ const uint32_t kSyncQueueSize = 3;
 const char* kLeftImageTopic = "left_image";
 const char* kRightImageTopic = "right_image";
 
+int gImageWidth, gImageHeight;
+
 InputMonoCameraROS2::InputMonoCameraROS2(rclcpp::Node::SharedPtr const &node_, const std::string & config ): node(node_)
 {
     cameraParams.imageFormat = Y_ONLY_FORMAT;
@@ -24,6 +26,10 @@ InputMonoCameraROS2::InputMonoCameraROS2(rclcpp::Node::SharedPtr const &node_, c
         gotCameraPara = true;
         rgbInfoSub = NULL;
         rgb_sub = image_transport::create_subscription(node.get(), "/camera/color/image_raw", bind(&InputMonoCameraROS2::callback, this, std::placeholders::_1), "raw", rmw_qos_profile_default);
+
+		gImageWidth = cameraParams.stereoRect.camera[0].pixelWidth;
+	    gImageHeight=cameraParams.stereoRect.camera[0].pixelHeight;
+	    printf("****** rect image (2) width %d height %d\n*******", cameraParams.stereoRect.camera[0].pixelWidth, cameraParams.stereoRect.camera[0].pixelHeight);
     }
     else
     {
@@ -31,6 +37,10 @@ InputMonoCameraROS2::InputMonoCameraROS2(rclcpp::Node::SharedPtr const &node_, c
             std::string("/camera/color/camera_info"), 10, bind(&InputMonoCameraROS2::rgbInfo_callback, this, std::placeholders::_1));
         gotCameraPara = false;
     }
+
+	gImageWidth = cameraParams.stereoRect.camera[0].pixelWidth;
+    gImageHeight=cameraParams.stereoRect.camera[0].pixelHeight;
+	printf("****** rect image (3) width %d height %d\n*******", cameraParams.stereoRect.camera[0].pixelWidth, cameraParams.stereoRect.camera[0].pixelHeight);
 }
 
 InputMonoCameraROS2::~InputMonoCameraROS2()
@@ -63,10 +73,10 @@ void InputMonoCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedPtr
         return;
     }
 
-    //printf("call callback\n");
-    rclcpp::Time t = image->header.stamp;
-    cvtColor(cv_ptrRGB->image, grayImage, cv::COLOR_RGB2GRAY);
-    callback_(t.nanoseconds(), grayImage.data, (const uint16_t *)NULL);
+	printf("call callback\n");
+	rclcpp::Time t = image->header.stamp;
+	cvtColor(cv_ptrRGB->image, grayImage, cv::COLOR_RGB2GRAY);
+	callback_(t.nanoseconds(), grayImage.data, (const uint16_t *)NULL);
 }
 
 void InputMonoCameraROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::SharedPtr rgbInfo)
@@ -138,6 +148,10 @@ bool InputMonoCameraROS2::ReadCameraConfig( const std::string & filename, rvCame
       cameraParams.stereoRect.camera[0].initialized = true;
       cameraParams.stereoRect.camera[0].pixelHeight = imageSize.height;
       cameraParams.stereoRect.camera[0].pixelWidth = imageSize.width;
+
+	  gImageWidth = cameraParams.stereoRect.camera[0].pixelWidth;
+	  gImageHeight=cameraParams.stereoRect.camera[0].pixelHeight;
+	  printf("****** rect image (0) width %d height %d\n*******", cameraParams.stereoRect.camera[0].pixelWidth, cameraParams.stereoRect.camera[0].pixelHeight);
       for (size_t i=0; i<3; i++)
       {
           for (size_t j=0; j<3; j++)
@@ -153,6 +167,10 @@ bool InputMonoCameraROS2::ReadCameraConfig( const std::string & filename, rvCame
        cameraParams.stereoRect.camera[0].initialized = false;
        cameraParams.stereoRect.camera[0].pixelHeight = imageSize.height;
        cameraParams.stereoRect.camera[0].pixelWidth = imageSize.width;
+
+	   gImageWidth = cameraParams.stereoRect.camera[0].pixelWidth;
+	   gImageHeight=cameraParams.stereoRect.camera[0].pixelHeight;
+	   printf("****** rect image (1) width %d height %d\n*******", cameraParams.stereoRect.camera[0].pixelWidth, cameraParams.stereoRect.camera[0].pixelHeight);
    }
 
    cameraParams.stereoRect.camera[1].initialized = false;

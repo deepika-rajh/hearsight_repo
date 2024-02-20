@@ -146,7 +146,8 @@ struct IMUElement
 typedef struct
 {
     bool imuEnabled;
-    float32_t acceBias[3], gyroBias[3];
+    IMUElement acc;
+    IMUElement gyr;
     float32_t deltaInSecond;
     rvPose6DRT cameraInIMU;
 } rvIMUConfiguration;
@@ -164,6 +165,7 @@ typedef struct
 {
     bool wheelEnabled;
     rvPose6DRT baselinkInCamera; //also the cross-calibration matrix;
+    float footprintSize; //the size of the baselink
 } rvWheelConfiguration;
 
 
