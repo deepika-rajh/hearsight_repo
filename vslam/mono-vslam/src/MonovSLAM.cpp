@@ -11,7 +11,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <unistd.h>
 
 #include "VSLAMSystem.h"
-#include "InputRGBDCameraROS2.h"
+#include "InputMonoCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
 #include <VSLAMWheel.h>
@@ -47,7 +47,7 @@ static void INT_handler (int /*sig*/)
 int main( int argc, char** argv )
 {
    std::string sensorSetting = std::string( "/data/misc/vwslam/" );
-   std::string algSetting="/data/misc/vwslam/Configuration/rgbdWSlam.cfg";
+   std::string algSetting="/data/misc/vwslam/Configuration/monoSlam.cfg";
    std::string output="/data/vwslam/";
 
    if (argc == 4)
@@ -88,7 +88,7 @@ int main( int argc, char** argv )
    wheel.addCallback(VSLAMWheel::wheelCallback);
    //start VSLAM system
    GetCameraSettingFile( sensorSetting, "Configuration/vslam.cfg", cameraSettingFile);
-   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputRGBDCameraROS2>(g_node, sensorSetting+cameraSettingFile);
+   std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputMonoCameraROS2>(g_node, sensorSetting+cameraSettingFile);
    ParseSensorParam(sensorSetting, "Configuration/vslam.cfg", VSLAMSystem::wheelConfiguration, VSLAMSystem::imuConfiguration, VSLAMSystem::targetImage);
 
    std::shared_ptr<VSLAMSystem> sys = VSLAMSystem::Initialize( algSetting, output, inputCamera, false);
@@ -109,7 +109,6 @@ int main( int argc, char** argv )
    //gray_pub.shutdown();
    //depth_pub.shutdown();
    labeled_img_pub.shutdown();
-   occupancy_img_pub.shutdown();
    rclcpp::shutdown();
    raw_pose_pub = nullptr;
    robot_pose_pub = nullptr;

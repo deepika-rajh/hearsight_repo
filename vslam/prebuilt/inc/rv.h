@@ -128,7 +128,9 @@ extern "C"
       Polynomial4,
       Polynomial5,
       RationalModel8,
-      FisheyeModel4
+      FisheyeModel4,
+      ThinPrism12,
+      Tilted14
    } rvDistortionModel;
 
    /************************************************************************//**
@@ -177,7 +179,7 @@ extern "C"
       // Calibration:
       float32_t principalPoint[2];
       float32_t focalLength[2];
-      float32_t distortion[8];
+      float32_t distortion[14];
       rvDistortionModel   distortionModel;
    } rvCameraIntrinsic;
 

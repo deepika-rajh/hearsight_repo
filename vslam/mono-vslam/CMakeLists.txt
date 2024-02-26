@@ -47,7 +47,7 @@ add_executable(${PROJECT_NAME}
     src/MonovSLAM.cpp
     ../src/VSLAMSystem.cpp
     ../src/SystemTime.cpp
-    ../src/InputRGBDCameraROS2.cpp
+    ../src/InputMonoCameraROS2.cpp
     ../src/VSLAMIMU.cpp
     ../src/VSLAMWheel.cpp
     ../src/VSLAMHijack.cpp
@@ -59,7 +59,6 @@ add_executable(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
     rv
-    mv1
     mv3
     ${OpenCV_LIBS}
     sensor_client
