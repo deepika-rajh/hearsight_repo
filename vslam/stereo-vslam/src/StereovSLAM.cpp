@@ -49,9 +49,9 @@ std::string GetStringParam(const std::string &param_name)
 
 int main(int argc, char **argv)
 {
-    std::string algSetting = "/data/misc/vwslam/Configuration/stereoSlam.cfg";
-    std::string sensorSetting = "/data/misc/vwslam/";
-    std::string output = "/data/vwslam/";
+    std::string algSetting = "/opt/qcom/qirf-sdk/data/misc/vwslam/Configuration/stereoSlam.cfg";
+    std::string sensorSetting = "/opt/qcom/qirf-sdk/data/misc/vwslam/";
+    std::string output = "/opt/qcom/qirf-sdk/data/vwslam/";
     std::string vslam_config_file = "Configuration/robot.cfg";
 
 
