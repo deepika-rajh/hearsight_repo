@@ -39,13 +39,13 @@ public:
 
         //s1:initialization
         std::string confPath;
-        confPath.append("/data/misc/auto-explore/Configuration/aeconfiguration.yaml");
+        confPath.append("/opt/qcom/qirf-sdk/data/misc/auto-explore/Configuration/aeconfiguration.yaml");
         RCLCPP_INFO(this->get_logger(), "root configuration path is : %s\n", confPath.c_str());
 
         rvAMobj = new explorer::Exploration(confPath);
 
         //s2:call the main function
-        this->turtle_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/commands/velocity", 10);
+        this->amr_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
         this->goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/goal_pose", 10);
         //this->isProcessedRotate();
 
@@ -62,7 +62,7 @@ public:
 
     // Callback to register with tf2_ros::MessageFilter to be called when transforms are available
 private:
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr turtle_vel_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr amr_vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goal_pub_;
 
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_subscription_;
@@ -82,7 +82,7 @@ private:
             vel_msg.linear.x = 0.0;
             vel_msg.angular.z = rVelocity_;
 
-            turtle_vel_pub_->publish(vel_msg);
+            amr_vel_pub_->publish(vel_msg);
 
             loop_rate.sleep();
             rotateAngle += 0.1 * rVelocity_;
@@ -91,7 +91,7 @@ private:
                 vel_msg.linear.x = 0.0;
                 vel_msg.angular.z = 0.0f;
 
-                turtle_vel_pub_->publish(vel_msg);
+                amr_vel_pub_->publish(vel_msg);
                 break;
             }
         }
@@ -102,9 +102,9 @@ private:
 
     void mapSaver(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
     {
-        FILE * mapmeta = fopen("/data/auto-explore/map.yaml", "wb");
+        FILE * mapmeta = fopen("/opt/qcom/qirf-sdk/data/auto-explore/map.yaml", "wb");
 
-        fprintf(mapmeta, "image: /data/auto-explore/map.pgm\n");
+        fprintf(mapmeta, "image: /opt/qcom/qirf-sdk/data/auto-explore/map.pgm\n");
         fprintf(mapmeta, "mode: trinary\n");
         fprintf(mapmeta, "resolution: %f\n", map->info.resolution);
         fprintf(mapmeta, "origin: [%f, %f, %f]\n", map->info.origin.position.x, map->info.origin.position.y, map->info.origin.position.z);
@@ -112,10 +112,6 @@ private:
         fprintf(mapmeta, "free_thresh: 0.25\n");
         fprintf(mapmeta, "negate: 0\n");
         fclose(mapmeta);
-
-        cv::Mat mapSaver1(map->info.height, map->info.width, CV_8UC1);
-        memcpy(mapSaver1.data, &(map->data[0]), sizeof(unsigned char)*map->info.height*map->info.width);
-        imwrite("/data/auto-explore/map.png", mapSaver1);
 
         cv::Mat mapSaver(map->info.height, map->info.width, CV_8UC1);
         memset(mapSaver.data, 205, sizeof(unsigned char)*map->info.height*map->info.width);
@@ -136,8 +132,8 @@ private:
             }
         }
 
-        imwrite("/data/auto-explore/map.pgm", mapSaver);
-        RCLCPP_INFO(this->get_logger(), "Finish saving map in /data/auto-explore\n");
+        imwrite("/opt/qcom/qirf-sdk/data/auto-explore/map.pgm", mapSaver);
+        RCLCPP_INFO(this->get_logger(), "Finish saving map in /opt/qcom/qirf-sdk/data/auto-explore\n");
     }
 
     void topic_map_callback(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
