@@ -173,9 +173,9 @@ void VMSystem::pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) co
     cameraPose.pose.matrix[1][0] = rotation[3];
     cameraPose.pose.matrix[1][1] = rotation[4];
     cameraPose.pose.matrix[1][2] = rotation[5];
-    cameraPose.pose.matrix[2][1] = rotation[6];
-    cameraPose.pose.matrix[2][2] = rotation[7];
-    cameraPose.pose.matrix[2][3] = rotation[8];
+    cameraPose.pose.matrix[2][0] = rotation[6];
+    cameraPose.pose.matrix[2][1] = rotation[7];
+    cameraPose.pose.matrix[2][2] = rotation[8];
 
     cameraPose.pose.matrix[0][3] = msg->pose.pose.position.x;
     cameraPose.pose.matrix[1][3] = msg->pose.pose.position.y;
