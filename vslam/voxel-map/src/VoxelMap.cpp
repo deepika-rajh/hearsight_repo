@@ -66,7 +66,7 @@ int main( int argc, char** argv )
    }
 
    rclcpp::init(argc, argv);
-   g_node = rclcpp::Node::make_shared("vm_ros");
+   g_node = rclcpp::Node::make_shared("voxel_map");
 
    occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
 
