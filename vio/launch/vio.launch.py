@@ -1,4 +1,5 @@
-# Copyright (c) 2023-2024 Qualcomm Technologies, Inc. All Rights Reserved.
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries. 
+# All rights reserved.
 # Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 import launch
@@ -10,7 +11,7 @@ from launch_ros.descriptions import ComposableNode
 def generate_launch_description():
     camera_info_config_file_path = os.path.join(
         get_package_share_directory('qrb_ros_camera'),
-        'config', 'camera_info.yaml'
+        'config', 'camera_info_ov9282.yaml'
     )
 
     """Generate launch description with multiple components."""
@@ -31,15 +32,12 @@ def generate_launch_description():
         parameters=[{
             'camera_info_path': camera_info_config_file_path,
             'fps': 30,
-            'width': 1920,
-            'height': 1080,
-            'cameraId': 0,
+            'width': 640,
+            'height': 360,
+            'cameraId': 1,
             'publish_latency_type': 1,
             'dump_camera_info_': False,
         }],
-        remappings=[
-            ('image', 'cameraid0')
-        ]
         ),
     ComposableNode(
         package='qrb_ros_imu',

@@ -1,7 +1,6 @@
 ﻿/*****************************************************************************
-@copyright
-Copyright (c) 2022-2023 Qualcomm Technologies, Inc.
-All Rights Reserved.
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries. 
+All rights reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 
@@ -22,9 +21,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <sstream>
 #include <fstream>
 
-#include "VSLAMHijack.h"
+
 #include <rvQueue.h>
-queue_mt<sensor_hijack> hijackArray(BUF_SIZE);
+
 
 //static members definition
 rvVIOHandle * VISLAMSystem::vioPtr = nullptr;
@@ -41,12 +40,7 @@ rvCameraParams VISLAMSystem::cameraConfiguration;
 rvIMUConfiguration VISLAMSystem::imuConfiguration;
 rvWheelConfiguration VISLAMSystem::wheelConfiguration;
 
-#ifdef IMU_SUPPORTED
-   std::shared_ptr<VSLAMIMU> VISLAMSystem::imu = nullptr;
-#endif
-
 std::shared_ptr<CameraInterface> VISLAMSystem::inputCamera = nullptr;
-
 
 /************************************** C APIs start ************/
 void Euler2Quaternion( double roll, double pitch, double yaw, double quaternion[4] )
@@ -106,74 +100,6 @@ void Matrix2Quaternion( const float32_t a[3][4], float& qw, float& qx, float& qy
       }
    }
 }
-
-#ifdef ROS_BASED
-#include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-using std::placeholders::_1;
-
-extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
-extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
-extern rclcpp::Node::SharedPtr g_node;
-
-void pub_camera_raw_pose(const rvVISLAMPose & pose)
-{
-  auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
-
-  odom_msg->header.frame_id = "odom";
-  odom_msg->child_frame_id  = "base_link";
-  odom_msg->header.stamp = rclcpp::Time(pose.time, RCL_ROS_TIME);
-
-  odom_msg->pose.pose.position.x = pose.bodyPose.matrix[0][3];
-  odom_msg->pose.pose.position.y = pose.bodyPose.matrix[1][3];
-  odom_msg->pose.pose.position.z = pose.bodyPose.matrix[2][3];
-
-  float qw, qx, qy, qz;
-  Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
-
-  odom_msg->pose.pose.orientation.x =  qx;
-  odom_msg->pose.pose.orientation.y =  qy;
-  odom_msg->pose.pose.orientation.z =  qz;
-  odom_msg->pose.pose.orientation.w =  qw;
-
-  odom_msg->twist.twist.linear.x  = 0;
-  odom_msg->twist.twist.angular.z = 0;
-
-  raw_pose_pub->publish(std::move(odom_msg));
-}
-
-void pub_robot_pose(const rvVISLAMPose& pose)
-{
-  auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
-
-  odom_msg->header.frame_id = "odom";
-  odom_msg->child_frame_id  = "base_link";
-  odom_msg->header.stamp = rclcpp::Time(pose.time, RCL_ROS_TIME);
-
-  odom_msg->pose.pose.position.x = pose.bodyPose.matrix[0][3];
-  odom_msg->pose.pose.position.y = pose.bodyPose.matrix[1][3];
-  odom_msg->pose.pose.position.z = pose.bodyPose.matrix[2][3];
-
-  float qw, qx, qy, qz;
-  Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
-
-  odom_msg->pose.pose.orientation.x =  qx;
-  odom_msg->pose.pose.orientation.y =  qy;
-  odom_msg->pose.pose.orientation.z =  qz;
-  odom_msg->pose.pose.orientation.w =  qw;
-
-  odom_msg->twist.twist.linear.x  = 0;
-  odom_msg->twist.twist.angular.z = 0;
-
-  robot_pose_pub->publish(std::move(odom_msg));
-}
-
-void VISLAMSystem::state_callbackROS(const std_msgs::msg::String::SharedPtr msg) const
-{
-    state_callback(msg->data);
-}
-#endif
 
 OutputRecorder::OutputRecorder()
 {
@@ -244,16 +170,18 @@ VISLAMSystem::~VISLAMSystem()
 
 void VISLAMSystem::deinit()
 {
-   if( vioPtr )
+    t->deinit0();
+}
+
+void VISLAMSystem::deinit0()
+{
+   if(vioPtr)
    {
-      rvVIO_Deinitialize( vioPtr );
+      rvVIO_Deinitialize(vioPtr);
       delete [] pPoints;
    }
 
    inputCamera = nullptr;
-#ifdef IMU_SUPPORTED
-   imu = nullptr;
-#endif
 }
 
 VISLAMSystem::VISLAMSystem( std::shared_ptr<CameraInterface> & camera )
@@ -267,11 +195,6 @@ VISLAMSystem::VISLAMSystem( std::shared_ptr<CameraInterface> & camera )
       inputCamera->start();
       cameraConfiguration = inputCamera->getCameraConfiguration();
    }
-
-#ifdef ROS_BASED
-   state_sub = g_node->create_subscription<std_msgs::msg::String>( "vslam_state", 10,
-        std::bind(&VISLAMSystem::state_callbackROS, this,  _1));
-#endif
 }
 
 void EulerToSO3_1( const float32_t* euler, float32_t* rotation )
@@ -324,17 +247,14 @@ bool VISLAMSystem::loadWheelConfiguration( const char * configFile )
          iss >> translation[0] >> translation[1] >> translation[2];
          wheelConfiguration.baselinkInCamera.matrix[0][3] = translation[0];
          wheelConfiguration.baselinkInCamera.matrix[1][3] = translation[1];
-         wheelConfiguration.baselinkInCamera.matrix[2][3] = translation[2]; 
+         wheelConfiguration.baselinkInCamera.matrix[2][3] = translation[2];
          crossT = true;
       }
       else if( itemName.compare( "WEF.Rvb" ) == 0 )
       {
          float euler[3];
          iss >> euler[0] >> euler[1] >> euler[2];
-         //https://en.wikipedia.org/wiki/Euler_angles#Tait%E2%80%93Bryan_angles
-         //Section Conversion to other orientation representations->Rotation matrix
-         //This euler angle is defined as Z1Y2X3 according to the conversion table in the section mentioned above
-         //Which is different from the defintion of mvPose6DET in mv.h
+
          float rotation[9];
          EulerToSO3_1( euler, rotation );
          memcpy( wheelConfiguration.baselinkInCamera.matrix[0], rotation + 0, sizeof( float ) * 3 );
@@ -350,100 +270,84 @@ bool VISLAMSystem::loadWheelConfiguration( const char * configFile )
    return true;
 }
 
-std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSetting, const std::string& outputDir,
-    std::shared_ptr<CameraInterface> camera, bool _showImg)
+std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSetting, const std::string& outputDir)
 {
-   algConfFile = algSetting;
-   outputPath = outputDir;
-   if( t.get() == nullptr )
-   {
-      t = std::make_shared<VISLAMSystem>(camera);
+    algConfFile = algSetting;
+    outputPath = outputDir;
 
+    rvVIOCfg vioCfg;
+    vioCfg.rvCameraCfg = &cameraConfiguration.stereo.camera[0];
 
-      rvVIOCfg vioCfg;
-      vioCfg.rvCameraCfg = &cameraConfiguration.stereo.camera[0];
+    vioCfg.tbc[0] = imuConfiguration.cameraInIMU.matrix[0][3];
+    vioCfg.tbc[1] = imuConfiguration.cameraInIMU.matrix[1][3];
+    vioCfg.tbc[2] = imuConfiguration.cameraInIMU.matrix[2][3];
 
-      vioCfg.tbc[0] = imuConfiguration.cameraInIMU.matrix[0][3];
-      vioCfg.tbc[1] = imuConfiguration.cameraInIMU.matrix[1][3];
-      vioCfg.tbc[2] = imuConfiguration.cameraInIMU.matrix[2][3];
-
-      cv::Mat rMat( 3, 3, CV_32FC1 );
-      for( size_t i = 0; i < 3; i++ )
-         for( size_t j = 0; j < 3; j++ )
+    cv::Mat rMat( 3, 3, CV_32FC1 );
+    for( size_t i = 0; i < 3; i++ )
+    {
+        for( size_t j = 0; j < 3; j++ )
+        {
             rMat.at<float32_t>( i, j ) = imuConfiguration.cameraInIMU.matrix[i][j];
-      cv::Mat rMat0( 3, 1, CV_32FC1 );
-      cv::Rodrigues( rMat, rMat0 );
-      vioCfg.ombc[0] = rMat0.at<float32_t>( 0 );
-      vioCfg.ombc[1] = rMat0.at<float32_t>( 1 );
-      vioCfg.ombc[2] = rMat0.at<float32_t>( 2 );
+        }
+    }
+
+    cv::Mat rMat0( 3, 1, CV_32FC1 );
+    cv::Rodrigues( rMat, rMat0 );
+    vioCfg.ombc[0] = rMat0.at<float32_t>( 0 );
+    vioCfg.ombc[1] = rMat0.at<float32_t>( 1 );
+    vioCfg.ombc[2] = rMat0.at<float32_t>( 2 );
 
 
-      vioCfg.delta = imuConfiguration.deltaInSecond; //-0.0068f
+    vioCfg.delta = imuConfiguration.deltaInSecond; //-0.0068f
 
-      vioCfg.std0Delta = 0.001f;   // firmware/driver upgrades may affect the time alignment
+    vioCfg.std0Delta = 0.001f;   // firmware/driver upgrades may affect the time alignment
 
-      vioCfg.std0Tbc[0] = 0.005f;
-      vioCfg.std0Tbc[1] = 0.005f;
-      vioCfg.std0Tbc[2] = 0.005f;
+    vioCfg.std0Tbc[0] = 0.005f;
+    vioCfg.std0Tbc[1] = 0.005f;
+    vioCfg.std0Tbc[2] = 0.005f;
 
-      vioCfg.std0Ombc[0] = 0.04f; //0.05f
-      vioCfg.std0Ombc[1] = 0.04f; //0.05f
-      vioCfg.std0Ombc[2] = 0.04f; //0.05f
+    vioCfg.std0Ombc[0] = 0.04f; //0.05f
+    vioCfg.std0Ombc[1] = 0.04f; //0.05f
+    vioCfg.std0Ombc[2] = 0.04f; //0.05f
 
-      vioCfg.accelMeasRange = 156.f;
-      vioCfg.gyroMeasRange = 34.f;
+    vioCfg.accelMeasRange = 156.f;
+    vioCfg.gyroMeasRange = 34.f;
 
-      vioCfg.stdAccelMeasNoise = 0.316227766016838f; // sqrt(1e-1);
-      vioCfg.stdGyroMeasNoise = 1e-2f; // sqrt(1e-4);
+    vioCfg.stdAccelMeasNoise = 0.316227766016838f; // sqrt(1e-1);
+    vioCfg.stdGyroMeasNoise = 1e-2f; // sqrt(1e-4);
 
-      vioCfg.stdCamNoise = 100.f;
-      vioCfg.minStdPixelNoise = 0.5f;
-      vioCfg.failHighPixelNoiseScaleFactor = 1.6651f;
+    vioCfg.stdCamNoise = 100.f;
+    vioCfg.minStdPixelNoise = 0.5f;
+    vioCfg.failHighPixelNoiseScaleFactor = 1.6651f;
 
-      vioCfg.logDepthBootstrap = 0.f;
-      vioCfg.useLogCameraHeight = false;
-      vioCfg.logCameraHeightBootstrap = -3.22f;
+    vioCfg.logDepthBootstrap = 0.f;
+    vioCfg.useLogCameraHeight = false;
+    vioCfg.logCameraHeightBootstrap = -3.22f;
 
-      vioCfg.noInitWhenMoving = false; // true;
-      vioCfg.limitedIMUbWtrigger = 35.f;
+    vioCfg.noInitWhenMoving = false; // true;
+    vioCfg.limitedIMUbWtrigger = 35.f;
 
-      vioCfg.algConfigPath = algSetting;
-      vioPtr = rvVIO_Initialize( &vioCfg );
-      rvVIOPointsNum = 200;//100
-      pPoints = new rvVISLAMMapPoint[rvVIOPointsNum];
+    vioCfg.algConfigPath = algSetting;
+    vioPtr = rvVIO_Initialize( &vioCfg );
+    rvVIOPointsNum = 200;//100
+    pPoints = new rvVISLAMMapPoint[rvVIOPointsNum];
 
-      recorder.initialize(outputDir.c_str());
+    recorder.initialize(outputDir.c_str());
 
-#ifdef IMU_SUPPORTED
-      printf("IMU_SUPPORTED! \n");
+    switch(cameraConfiguration.cameraType)
+    {
+        case rvStereo:      
+            viz = std::make_shared<Visualiser>( cameraConfiguration.stereo.camera[0].pixelWidth, cameraConfiguration.stereo.camera[0].pixelHeight );
+            break;
+        case rvGrayDepth:
+            viz = std::make_shared<Visualiser>( cameraConfiguration.stereo.camera[0].pixelWidth, cameraConfiguration.stereo.camera[0].pixelHeight );
+            break;
+        case rvMonocular:
+        default:
+            viz = std::make_shared<Visualiser>( cameraConfiguration.stereoRect.camera[0].pixelWidth, cameraConfiguration.stereoRect.camera[0].pixelHeight );
+    }
 
-      imu = std::make_shared<VSLAMIMU>();
-      if( imu != nullptr )
-      {
-         std::shared_ptr<IMUReceiver> tmp = t;
-         imu->addReceiver( tmp );
-      }
-#endif
-      switch(cameraConfiguration.cameraType)
-      {
-      case rvStereo:      
-         viz = std::make_shared<Visualiser>( cameraConfiguration.stereo.camera[0].pixelWidth, cameraConfiguration.stereo.camera[0].pixelHeight );
-         break;
-      case rvGrayDepth:
-         viz = std::make_shared<Visualiser>( cameraConfiguration.stereo.camera[0].pixelWidth, cameraConfiguration.stereo.camera[0].pixelHeight );
-         break;
-      case rvMonocular:
-      default:
-
-         viz = std::make_shared<Visualiser>( cameraConfiguration.stereoRect.camera[0].pixelWidth, cameraConfiguration.stereoRect.camera[0].pixelHeight );
-      }
-
-#if GDB_DEBUG  //SIGINT would go to gdb but not vslam application
-      signal( 48, Stop );
-#else
-      signal( SIGINT, Stop );
-#endif
-   }
+    signal( SIGINT, Stop );
 
    return t;
 }
@@ -454,12 +358,8 @@ void VISLAMSystem::Run()
    {
       return;
    }
-#ifdef IMU_SUPPORTED
-   if( imu )
-      imu->start();
-#endif
 
-   printf("vwSLAM OK\n");
+   printf("VIO OK\n");
    systemState = KWORKING;
 }
 
@@ -468,10 +368,6 @@ void VISLAMSystem::sleep(bool isCloseCamera)
    if(systemState == KSLEEPING)
       return;
 
-#ifdef ARM_BASED
-   if (isCloseCamera )
-      inputCamera->stop();
-#endif
    systemState = KSLEEPING;
 }
 
@@ -479,11 +375,7 @@ void VISLAMSystem::awake(bool isStartCamera)
 {
    if(systemState == KSLEEPING)
    {
-#ifdef ARM_BASED
-   if(isStartCamera)
-      inputCamera->start();
-#endif
-   systemState = KWORKING;
+       systemState = KWORKING;
    }
 }
 
@@ -498,13 +390,6 @@ void VISLAMSystem::reset()
 static uint64_t lastPoseTimeStamp = 0;
 static int isInitDone = 0;
 
-#ifdef SIMULATION
-std::mutex VISLAMSystem::mut;
-int64_t VISLAMSystem::currentImageTimeStamp = 1;
-int64_t VISLAMSystem::rawPoseTimeStamp = 0;
-std::condition_variable VISLAMSystem::data_cond;
-#endif
-
 void VISLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imageBuf, const uint16_t * depthBuf )
 {
    if( VISLAMSystem::systemState == KSLEEPING)
@@ -515,15 +400,9 @@ void VISLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * ima
    printf("got an image\n");
    if( !isInitDone )
    {
-      system("echo vSLAM Initialization is finished > /dev/kmsg");
+      system("echo vio Initialization is finished > /dev/kmsg");
       isInitDone = true;
    }
-#ifdef SIMULATION   
-   {
-      std::lock_guard<std::mutex> lk( mut );
-      currentImageTimeStamp = timestamp;
-   }
-#endif
 
    if( vioPtr )
    {
@@ -533,14 +412,13 @@ void VISLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * ima
       int pointNum = rvVIO_HasUpdatedPointCloud( vioPtr );
       rvVIO_GetPointCloud( vioPtr, pPoints, rvVIOPointsNum );
 
-      viz->ShowVIOPoints(imageBuf, pose.poseQuality, "VIO", pointNum, pPoints); 
+      viz->ShowVIOPoints(imageBuf, pose.poseQuality, "VIO", pointNum, pPoints);
 
-#ifdef ROS_BASED
-       if (pose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT)
+      if (pose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT)
       {
-          pub_camera_raw_pose(pose);
+          t->pub_camera_raw_pose(pose);
       }
-#endif
+
    }
 }
 
@@ -555,92 +433,46 @@ VISLAMSystem::addIMU( const float linearAcceleration[3], const float angularVelo
 }
 
 
-void 
-VISLAMSystem::Spin()
+void VISLAMSystem::Spin()
 {
-#ifdef ROS_BASED
-   rclcpp::spin( g_node );
-#elif defined (ROS1_BASED)
-   ros::spin( );
-#else 
-
-   // FILE * fp = fopen( "predict.csv", "wt" );
    while( systemState != KSTOPPING )
    {
        VSLAM_SLEEP( 10 );
-#ifdef SIMULATION
-       if (vioPtr) 
-       {
-           rvVISLAMPose  rawPose = rvVIO_GetPose(vioPtr);
-           {
-               std::lock_guard<std::mutex> lk(mut);
-               if (rawPose.time == -1)
-               {
-                   VSLAM_SLEEP(10);
-                   rawPoseTimeStamp = currentImageTimeStamp;
-               }
-               else
-               { 
-                   rawPoseTimeStamp = rawPose.time;
-               }
-               data_cond.notify_all();
-           }
-       }
-#endif //SIMULATION
    }
-#ifdef SIMULATION
-   {
-      std::lock_guard<std::mutex> lk( mut );
-      rawPoseTimeStamp = currentImageTimeStamp;
-      data_cond.notify_all();
-   }
-#endif //SIMULATION
-#endif
 }
 
 void VISLAMSystem::state_callback(const std::string & msg)
 {
-    printf("vslam received state change msg: %s\n", msg.c_str());
+    printf("vio received state change msg: %s\n", msg.c_str());
 
     if (!strcmp(msg.c_str(), "stop"))
     {
-        printf("vslam received stop sig\n");
+        printf("vio received stop sig\n");
         Stop(SIGINT);
     }
     else if (!strcmp(msg.c_str(), "sleep")) {
-        printf("vslam received sleep sig\n");
+        printf("vio received sleep sig\n");
         sleep(false);
     }
     else if (!strcmp(msg.c_str(), "awake")) {
-        printf("vslam received awake sig\n");
+        printf("vio received awake sig\n");
         awake();
     }
     else if (!strcmp(msg.c_str(), "reset")) {
-        printf("vslam received reset sig\n");
+        printf("vio received reset sig\n");
         reset();
     }
 }
 
 void VISLAMSystem::Quit( void )
 {
-
-#ifdef IMU_SUPPORTED
-   if( imu )
-      imu->stop();
-#endif
-
-   //yk
-   if( inputCamera )
-      inputCamera->stop();
+    //yk
+    if(inputCamera)
+    {
+        inputCamera->stop();
+    }
 }
 
 void VISLAMSystem::waitForRawPose()
 {
-#ifdef SIMULATION
-   std::unique_lock<std::mutex> lk( mut );
-   data_cond.wait( lk, []
-   {
-      return rawPoseTimeStamp >= currentImageTimeStamp;
-   } );
-#endif //SIMULATION
 }
