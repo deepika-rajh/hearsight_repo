@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     rclcpp::init(argc, argv);
     signal(SIGINT, INT_handler);
 
-    g_node = rclcpp::Node::make_shared("stereo_node");
+    g_node = rclcpp::Node::make_shared("stereo_vslam");
 
     raw_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("vslam_odom_raw", 5);
     robot_pose_pub = g_node.get()->create_publisher<nav_msgs::msg::Odometry>("robot_odom", 5);

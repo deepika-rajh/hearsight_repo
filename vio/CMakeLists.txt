@@ -1,92 +1,88 @@
-cmake_minimum_required(VERSION 3.5)
-project(vio)
+cmake_minimum_required(VERSION 3.8.2)
+project(qrb_ros_vio
+    LANGUAGES C CXX)
 
-# Default to C99
-if (NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 99)
-endif()
+option(BUILD_TESTS_ONLY "Build only the tests" OFF)
 
-# Default to C++14
-if (NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
+if(NOT BUILD_TESTS_ONLY)
+  # Default to C99
+  if (NOT CMAKE_C_STANDARD)
+    set(CMAKE_C_STANDARD 99)
+  endif()
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
+  # Default to C++14
+  if (NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 14)
+  endif()
 
-add_definitions(-DARM_BASED)
-add_definitions(-DROS_BASED)
-add_definitions(-DWHEEL_SUPPORTED)
-add_definitions(-DOPENCV_ENABLED)
-add_definitions(-DIMU_SUPPORTED)
+  if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic)
+  endif()
 
-# find dependencies
-find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(cv_bridge REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(rosidl_adapter REQUIRED)
+  include_directories (
+    include
+    ../vslam/prebuilt/inc/
+    ../vslam/include
+    ${OpenCV_INCLUDE_DIRS}
+  )
 
-set(OpenCV_DIR "/usr/lib/aarch64-linux-gnu/cmake/opencv4/")
-find_package(OpenCV REQUIRED)
+  link_directories(../vslam/prebuilt/libs/)
+  
+  # find dependencies
+  find_package(ament_cmake_auto REQUIRED)
 
-include_directories (
-  include
-  ../vslam/prebuilt/inc/
-  ../vslam/include
-  ${SYSROOT_INCDIR}/gstreamer-1.0
-  ${SYSROOT_INCDIR}/../lib/glib-2.0/include
-  ${SYSROOT_INCDIR}/glib-2.0
-  ${OpenCV_INCLUDE_DIRS}
-)
+  set(OpenCV_DIR "/usr/lib/aarch64-linux-gnu/cmake/opencv4/")
+  find_package(OpenCV REQUIRED)
 
-link_directories(../vslam/prebuilt/libs/)
+  ament_auto_find_build_dependencies()
+  ament_auto_add_executable(vio_node src/vio_node.cpp)
 
-add_executable(${PROJECT_NAME}
-    src/Vio.cpp
+  ament_auto_add_library(${PROJECT_NAME} SHARED
+    src/vio_component.cpp
     src/VISLAMSystem.cpp
+    src/VISLAMSystemROS2.cpp
     ../vslam/src/SystemTime.cpp
-    ../vslam/src/InputCamera_ov9282.cpp
-    ../vslam/src/VSLAMIMU.cpp
-    ../vslam/src/VSLAMWheel.cpp
-    ../vslam/src/VSLAMHijack.cpp
+    ../vslam/src/InputOv9282ROS2.cpp
     ../vslam/src/Visualization.cpp
-    ../vslam/src/InputWheelROS.cpp
-    ../vslam/src/IMURecorder.cpp
     ../vslam/src/ParseSensorParam.cpp
-)
+    ../vslam/src/InputIMUROS2.cpp
+  )
 
-target_link_libraries(${PROJECT_NAME}
+  rclcpp_components_register_nodes(${PROJECT_NAME}
+    PLUGIN "qrb_ros_vio::VioComponent"
+  )
+
+  target_link_libraries(${PROJECT_NAME}
     rv
     mv1
     mv3
-    sensor_client
-    gstreamer-1.0
-    ${OpenCV_LIBS}
-    glib-2.0
-    gobject-2.0
+    image_type_adapter
     pthread
-    dl)
+    dl
+  )
+  
+  target_link_libraries(vio_node
+    ${PROJECT_NAME}
+  )
 
-ament_target_dependencies(${PROJECT_NAME}
-    rclcpp
-    geometry_msgs
-    std_msgs
-    nav_msgs
-    sensor_msgs
-    cv_bridge
-    image_transport)
+  ament_auto_package(INSTALL_TO_SHARE launch)
 
-install(TARGETS ${PROJECT_NAME}
-        DESTINATION lib/${PROJECT_NAME})
+else()
+  include_directories(../include /opt/ros/foxy/include)
 
-install(DIRECTORY launch
-        DESTINATION share/${PROJECT_NAME})
+  find_package(rclcpp REQUIRED)
+  find_package(nav_msgs REQUIRED)
+  find_package(sensor_msgs REQUIRED)
+  find_package(ament_cmake_auto REQUIRED)
+  find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
 
-ament_package()
+  set(TESTFILES
+    test/src/main.cpp
+    test/src/test.cpp
+  )
 
+  ament_add_gtest(${PROJECT_NAME}_test ${TESTFILES})
+  ament_target_dependencies(${PROJECT_NAME}_test rclcpp nav_msgs sensor_msgs)
+
+endif()
