@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(depth-vslam)
 
-option(BUILD_TESTS_ONLY "Build only the tests" OFF)
+option(BUILD_TESTING "Build only the tests" OFF)
 
-if(NOT BUILD_TESTS_ONLY)
+if(NOT BUILD_TESTING)
   # Default to C99
   if (NOT CMAKE_C_STANDARD)
     set(CMAKE_C_STANDARD 99)

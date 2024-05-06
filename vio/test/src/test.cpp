@@ -20,12 +20,12 @@ protected:
 
 TEST_F(NodeTestSuite, RosMessageTest1)
 {
-    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node");
+    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node_1");
 
     uint16_t h = 0;
     auto pub = test_node->create_publisher<ODOM_TYPE>(ODOM_RAW_NAME, 10);
     auto sub = test_node->create_subscription<nav_msgs::msg::Odometry>(
-      "vslam_odom_raw", 10, 
+      "vslam_odom_raw", 10,
       [&h](const nav_msgs::msg::Odometry::SharedPtr msg) {
           h = 1U;
       });
@@ -49,12 +49,12 @@ TEST_F(NodeTestSuite, RosMessageTest1)
 
 TEST_F(NodeTestSuite, RosMessageTest2)
 {
-    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node");
+    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node_2");
 
     uint16_t h = 0;
-    auto pub = test_node->create_publisher<ODOM_TYPE>(ODOM_NAME, 10);
+    auto pub = test_node->create_publisher<ODOM_TYPE>(ROBOT_ODOM_NAME, 10);
     auto sub = test_node->create_subscription<nav_msgs::msg::Odometry>(
-      "robot_odom", 10, 
+      "robot_odom", 10,
       [&h](const nav_msgs::msg::Odometry::SharedPtr msg) {
           h = 1U;
       });
@@ -77,20 +77,20 @@ TEST_F(NodeTestSuite, RosMessageTest2)
 
 TEST_F(NodeTestSuite, RosMessageTest3)
 {
-    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node");
+    rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node_3");
 
     uint16_t h = 0;
-    auto pub = test_node->create_publisher<IMU_TYPE>(IMU_NAME, 10);
-    auto sub = test_node->create_subscription<sensor_msgs::msg::Imu>(
-      "sensor_imu", 10, 
-      [&h](const sensor_msgs::msg::Imu::SharedPtr msg) {
+    auto pub = test_node->create_publisher<LABEL_IMG_TYPE>(LABEL_IMG_NAME, 10);
+    auto sub = test_node->create_subscription<sensor_msgs::msg::Image>(
+      "vslam/labeled_img", 10,
+      [&h](const sensor_msgs::msg::Image::SharedPtr msg) {
           h = 1U;
       });
 
     EXPECT_EQ(pub->get_subscription_count(), 1U);
     EXPECT_EQ(sub->get_publisher_count(), 1U);
 
-    auto message = sensor_msgs::msg::Imu();
+    auto message = sensor_msgs::msg::Image();
     pub->publish(message);
 
     std::this_thread::sleep_for(std::chrono::seconds(1));

@@ -14,6 +14,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "InputRGBDCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
+#include "vm_apicheck.hpp"
 
 //ROS2 common headers
 #include <rclcpp/rclcpp.hpp>
@@ -68,7 +69,7 @@ int main( int argc, char** argv )
    rclcpp::init(argc, argv);
    g_node = rclcpp::Node::make_shared("voxel_map");
 
-   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
+   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "OCCUPANCY_IMG_NAME");
 
 #ifdef ARM_BASED
    //add log for ARM platform to check boot time

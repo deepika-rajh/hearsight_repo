@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.8.2)
 project(qrb_ros_vio
     LANGUAGES C CXX)
 
-option(BUILD_TESTS_ONLY "Build only the tests" OFF)
+option(BUILD_TESTING "Build only the tests" OFF)
 
-if(NOT BUILD_TESTS_ONLY)
+if(NOT BUILD_TESTING)
   # Default to C99
   if (NOT CMAKE_C_STANDARD)
     set(CMAKE_C_STANDARD 99)
@@ -60,7 +60,7 @@ if(NOT BUILD_TESTS_ONLY)
     pthread
     dl
   )
-  
+
   target_link_libraries(vio_node
     ${PROJECT_NAME}
   )
@@ -68,7 +68,7 @@ if(NOT BUILD_TESTS_ONLY)
   ament_auto_package(INSTALL_TO_SHARE launch)
 
 else()
-  include_directories(../include /opt/ros/foxy/include)
+  include_directories(./include)
 
   find_package(rclcpp REQUIRED)
   find_package(nav_msgs REQUIRED)
