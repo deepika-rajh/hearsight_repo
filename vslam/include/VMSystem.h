@@ -11,41 +11,18 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <memory>
 #include <list>
 
-#ifndef WIN32
-#include <unistd.h>
-#endif
-
-#ifdef WIN32
-#include <windows.h>
-inline void mySleep(int x)
-{
-    Sleep(x);
-}
-#define VSLAM_SLEEP(x)  mySleep(x)
-#else
 #include <unistd.h>
 #define VSLAM_SLEEP(x)  usleep(x*1000)
-#endif //WIN32
 
 #include <rvVM.h>
 #include "VSLAMHijack.h"
 #include "CameraInterface.h"
 
-#ifdef OPENCV_ENABLED
 #include "opencv2/opencv.hpp"
-#endif
 
-#ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp> 
 #include <nav_msgs/msg/odometry.hpp>
-#elif ROS1_BASED
-#include <ros/ros.h>
-#endif
-
-#ifdef SIMULATION
-#include <condition_variable>
-#endif //SIMULATION
 
 typedef struct
 {
@@ -71,11 +48,7 @@ public:
         systemState = KSTOPPING;
         stopExternalElements();
 
-#ifdef ROS_BASED
         rclcpp::shutdown();
-#elif defined (ROS1_BASED)
-        ros::shutdown();
-#endif
     }
 
     virtual void Run();
@@ -110,10 +83,8 @@ public:
 
     static rvVM* vmPtr;
 
-#ifdef ROS_BASED
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_sub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr cameraInMapPose_sub;
-#endif
 protected:
 
     typedef enum
@@ -143,18 +114,8 @@ private:
 
     static uint16_t * depthImage;
 
-#ifdef SIMULATION
-    //For simulation
-    static std::mutex mut;
-    static uint64_t currentImageTimeStamp;
-    static uint64_t rawPoseTimeStamp;
-    static std::condition_variable data_cond;
-#endif //SIMULATION
-
-#ifdef ROS_BASED
     void state_callbackROS(const std_msgs::msg::String::SharedPtr msg) const;
     void pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) const;
-#endif
 };
 
 #define VM_APP_VERSION "3.0.1.1"

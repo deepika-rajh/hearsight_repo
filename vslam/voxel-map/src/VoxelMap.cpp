@@ -14,7 +14,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "InputRGBDCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
-#include "vm_apicheck.hpp"
 
 //ROS2 common headers
 #include <rclcpp/rclcpp.hpp>
@@ -31,10 +30,6 @@ bool debugLevel = 0;
 int RV_LOG_LEVEL = 1;
 bool RV_STDERR_LOGGING = true;
 
-#ifndef ROS_BASED
-#define ROS_BASED
-#endif
-
 static char *helpMsg =
       "mv_vwslam \n"
       "Usage: mv_vwslam [-options]\n"
@@ -45,7 +40,6 @@ static char *helpMsg =
       "-h : print help msg\n";
 
 rclcpp::Node::SharedPtr g_node = nullptr;
-//image_transport::Publisher    color_pub;
 image_transport::Publisher    gray_pub;
 image_transport::Publisher    depth_pub;
 image_transport::Publisher    labeled_img_pub;
@@ -69,12 +63,10 @@ int main( int argc, char** argv )
    rclcpp::init(argc, argv);
    g_node = rclcpp::Node::make_shared("voxel_map");
 
-   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "OCCUPANCY_IMG_NAME");
+   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
 
-#ifdef ARM_BASED
    //add log for ARM platform to check boot time
    system("echo VM Start Initialization > /dev/kmsg");
-#endif
 
    //start VSLAM system
    std::string cameraSettingFile;
@@ -91,10 +83,8 @@ int main( int argc, char** argv )
    //stop VSLAM
    sys->Quit();
    sys->deinit();
-#ifdef ROS_BASED
    sys->state_sub = nullptr;
    sys->cameraInMapPose_sub = nullptr;
-#endif
    sys = nullptr;
    printf("vm application exits\n");
 
@@ -110,8 +100,7 @@ int main( int argc, char** argv )
 void showOccupancyImg(const cv::Mat & gridImage)
 {
     sensor_msgs::msg::Image::SharedPtr img;
-    img = cv_bridge::CvImage(
-         std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, gridImage ).toImageMsg();
+    img = cv_bridge::CvImage(std_msgs::msg::Header(), sensor_msgs::image_encodings::MONO8, gridImage ).toImageMsg();
 
     rclcpp::Clock ros_clock( RCL_ROS_TIME );
 

@@ -18,7 +18,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include "sensor_client.h"
 
-#ifdef ROS_BASED
 #include <sensor_msgs/msg/imu.hpp>
 extern rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub;
 
@@ -38,27 +37,6 @@ void publishImuRaw( int64_t ts, float gry_x, float gry_y, float gry_z, float acc
    imu_msg.angular_velocity.z = gry_z;
    imu_pub->publish( imu_msg );
 }
-#elif ROS1_BASED
-#include <sensor_msgs/Imu.h>
-extern ros::Publisher imu_pub;
-
-void publishImuRaw( int64_t ts, float gry_x, float gry_y, float gry_z, float acc_x, float acc_y, float acc_z )
-{
-   //rclcpp::Time t = rclcpp::Time(ts, RCL_ROS_TIME);
-   sensor_msgs::Imu imu_msg;
-
-   imu_msg.header.stamp = ros::Time::now();
-   imu_msg.header.frame_id = "imu";
-
-   imu_msg.linear_acceleration.x = acc_x;
-   imu_msg.linear_acceleration.y = acc_y;
-   imu_msg.linear_acceleration.z = acc_z;
-   imu_msg.angular_velocity.x = gry_x;
-   imu_msg.angular_velocity.y = gry_y;
-   imu_msg.angular_velocity.z = gry_z;
-   imu_pub.publish( imu_msg );
-}
-#endif
 
 void VSLAMIMU::imuProc()
 {
@@ -112,16 +90,7 @@ void VSLAMIMU::imuProc()
          gyrVal[1] = gyro_ptr->gyro.y;
          gyrVal[2] = gyro_ptr->gyro.z;
 
-#if 0
-         for( size_t i = 0; i < receiverVector.size(); i++ )
-         {
-            receiverVector[i]->addIMU( accVal, gyrVal, curTimeStampNs );
-         }
-#endif
-
-#ifdef ROS_BASED
          publishImuRaw( curTimeStampNs, gyrVal[0], gyrVal[1], gyrVal[2], accVal[0], accVal[1], accVal[2] );
-#endif
 
          accel_ptr += 1;
          gyro_ptr += 1;

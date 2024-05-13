@@ -347,8 +347,6 @@ std::shared_ptr<VISLAMSystem> VISLAMSystem::Initialize(const std::string& algSet
             viz = std::make_shared<Visualiser>( cameraConfiguration.stereoRect.camera[0].pixelWidth, cameraConfiguration.stereoRect.camera[0].pixelHeight );
     }
 
-    signal( SIGINT, Stop );
-
    return t;
 }
 

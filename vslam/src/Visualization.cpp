@@ -20,15 +20,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <image_transport/image_transport.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-#ifdef STEREO_ROS
-#include <ros/ros.h>
-#include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.hpp>
-#include <sensor_msgs/image_encodings.h>
-#include <nav_msgs/GetMap.h>
-#endif
-
-
 Visualiser::Visualiser( int width, int height )
 {
    imageHeight = height;
@@ -71,12 +62,6 @@ void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE qual
     //sprintf( imageName, "%s_labelledImage_%" PRId64 ".png", title.c_str(), poseWithTime.timestamp );
     //cv::imwrite( imageName, rview );
 
-//#ifndef ARM_BASED
-#ifndef __linux__
-    cv::imshow(title, rview);
-    cv::waitKey(1);
-#endif
-
     extern image_transport::Publisher    labeled_img_pub;
     static int divider = 0;
 
@@ -99,28 +84,6 @@ void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE qual
 
     divider++;
     if (divider > 14) divider = 0;
-#if STEREO_ROS
-    extern image_transport::Publisher    labeled_img_pub;
-    static int divider = 0;
-
-    if (divider == 0)
-    {
-        sensor_msgs::ImagePtr img;
-        img = cv_bridge::CvImage(
-            std_msgs::Header(), sensor_msgs::image_encodings::BGR8, rview).toImageMsg();
-
-        img->width = imageWidth;
-        img->height = imageHeight;
-        img->is_bigendian = false;
-        img->step = imageWidth * 3;
-        img->header.frame_id = "labeled_image";
-        img->header.stamp = ros::Time::now();
-        labeled_img_pub.publish(img);
-    }
-
-    divider++;
-    if (divider > 14) divider = 0;
-#endif
 
     return;
 }
@@ -134,12 +97,6 @@ void Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, 
    //char imageName[256];
    //sprintf( imageName, "%s_labelledImage_%" PRId64 ".png", title.c_str(), poseWithTime.timestamp );
    //cv::imwrite( imageName, rview );
-
-//#ifndef ARM_BASED
-#ifndef __linux__
-   cv::imshow( title, rview );
-   cv::waitKey( 1 );
-#endif
 
    extern image_transport::Publisher    labeled_img_pub;
    static int divider = 0;
@@ -163,106 +120,9 @@ void Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, 
 
    divider++;
    if(divider > 14) divider = 0;
-#if STEREO_ROS
-   extern image_transport::Publisher    labeled_img_pub;
-   static int divider = 0;
-
-   if(divider == 0)
-   {
-       sensor_msgs::ImagePtr img;
-       img = cv_bridge::CvImage(
-       std_msgs::Header(), sensor_msgs::image_encodings::BGR8, rview).toImageMsg();
-
-       img->width = imageWidth;
-       img->height = imageHeight;
-       img->is_bigendian = false;
-       img->step = imageWidth * 3;
-       img->header.frame_id = "labeled_image";
-       img->header.stamp = ros::Time::now();
-       labeled_img_pub.publish(img);
-   }
-
-   divider++;
-   if(divider > 14) divider = 0;
-#endif
 
    return;
 }
-
-#if 0
-void
-Visualiser::ShowGridMap(int64_t timestamp, int poseX, int poseY)
-{
-   if( gridHeight <= 0 || gridWidth <= 0 || gridImage == NULL )
-   {
-      return;
-   }
-
-#ifdef OPENCV_ENABLED
-   cv::Mat rview( gridHeight, gridWidth, CV_8UC1 );
-   memcpy( rview.data, gridImage, gridHeight*gridWidth );
-   cv::Mat cView;
-   cv::cvtColor( rview, cView, cv::COLOR_GRAY2BGR );
-   cv::circle( cView, cv::Point( poseX, poseY ), 3, cv::Scalar( 0, 0, 200 ),2 );
-   
-   #ifndef __linux__
-      cv::imshow( "grid map", cView );
-      cv::waitKey( 1 );
-      //char imageName[256];
-      //sprintf( imageName, "./intermediate/grid_%lld.png", timestamp );
-      //cv::imwrite( imageName, cView );
-   #endif
-#endif
-
-#ifdef ROS_BASED
-   extern image_transport::Publisher    occupancy_img_pub;
-   static int divider = 0;
-
-   if( divider == 0 )
-   {
-      cv::Mat rview = cv::Mat( gridHeight, gridWidth, CV_8UC1 );
-      memcpy( rview.data, gridImage, gridHeight* gridWidth );
-      cv::cvtColor( rview, rview, cv::COLOR_GRAY2BGR ); //TODO: not sure if RGB is a MUST
-
-      sensor_msgs::msg::Image::SharedPtr img;
-      img = cv_bridge::CvImage(
-         std_msgs::msg::Header(), sensor_msgs::image_encodings::BGR8, rview ).toImageMsg();
-
-      rclcpp::Clock ros_clock( RCL_ROS_TIME );
-
-      img->width = gridWidth;
-      img->height = gridHeight;
-      img->is_bigendian = false;
-      img->step = gridWidth * 3;
-      img->header.frame_id = "occupancy_image";
-      img->header.stamp = ros_clock.now();
-      occupancy_img_pub.publish( img );
-   }
-
-   divider++;
-   if( divider > 14 ) divider = 0;
-#endif
-
-   occupancyGridMutex.lock(); // just lock here in case the data might be visited outside
-   if( occupancyGridHeight*occupancyGridWidth < gridWidth*gridHeight )
-   {
-      if( occupancyGridImage != NULL )
-         delete[]occupancyGridImage;
-      occupancyGridImage = new unsigned char[gridWidth*gridHeight];
-   }
-   occupancyGridHeight = gridHeight;
-   occupancyGridWidth = gridWidth;
-   memcpy( occupancyGridImage, gridImage, gridWidth*gridHeight );
-   occupancyGridMutex.unlock();
-
-   // we always release the memory here. Please allocate another memory to hold if necessary
-   if( gridImage != NULL )
-      delete[]gridImage;
-   gridImage = NULL;
-
-   return;
-}
-#endif
 
 void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t* image, int widthFrame, int heightFrame, const int& pointNum, const rvVISLAMMapPoint* pPoints, cv::Mat& rview)
 {
