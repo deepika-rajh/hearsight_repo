@@ -416,6 +416,8 @@ void VISLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * ima
       {
           t->pub_camera_raw_pose(pose);
       }
+      
+      printf("********Tracking Quality %d ********\n", pose.poseQuality);
 
    }
 }
