@@ -13,8 +13,12 @@ InputOv9282ROS2::InputOv9282ROS2(rclcpp::Node & node_, const std::string & confi
 {
     cameraParams.imageFormat = Y_ONLY_FORMAT;
     cameraParams.cameraType = rvMonocular;
-	rclcpp::SubscriptionOptions sub_options;
+
+    auto my_callback_group = node.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    rclcpp::SubscriptionOptions sub_options;
     sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+    sub_options.callback_group = my_callback_group;
+
     printf("ov9282: %s\n", config.c_str());
     if (ReadCameraConfig(config, cameraParams))
     {
@@ -76,8 +80,10 @@ void InputOv9282ROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::Share
 
    printf("process ov9282 info\n");
 
+   auto my_callback_group = node.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
    rclcpp::SubscriptionOptions sub_options;
    sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+   sub_options.callback_group = my_callback_group;
 
    cameraParams.imageFormat = Y_ONLY_FORMAT;
    cameraParams.cameraType = rvMonocular;

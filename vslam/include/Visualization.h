@@ -1,7 +1,6 @@
 /*****************************************************************************
-@copyright
-Copyright (c) 2020-2022 Qualcomm Technologies, Inc.
-All Rights Reserved.
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+All rights reserved.
 Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 #ifndef _VISUALIZATION_H_
@@ -11,9 +10,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <mutex>
 #include "rvVWSLAM.h"
 #include "rvVIO.h"
-#ifdef OPENCV_ENABLED
 #include "opencv2/opencv.hpp"
-#endif
 
 typedef struct
 {
@@ -92,11 +89,8 @@ private:
    int occupancyGridWidth;
    uint8_t * occupancyGridImage;
 
-#ifdef OPENCV_ENABLED
    void DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t* image, int widthFrame, int heightFrame, const int& pointNum, const rvVISLAMMapPoint* pPoints, cv::Mat& rview);
-
    void DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t * image, int widthFrame, int heightFrame, const rvVWSLAMStatus & status, cv::Mat & rview );
-#endif
 };
 
 #endif //VISUALIZATION

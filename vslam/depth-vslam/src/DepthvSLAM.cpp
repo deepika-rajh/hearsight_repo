@@ -62,7 +62,7 @@ int main( int argc, char** argv )
    signal(SIGINT, INT_handler);
    g_node = rclcpp::Node::make_shared("depth_vslam");
 
-   labeled_img_pub = image_transport::create_publisher(g_node.get(), "vslam/labeled_img");
+   labeled_img_pub = image_transport::create_publisher(g_node.get(), "LABEL_IMG_NAME");
    raw_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>("ODOM_RAW_NAME", 5);
    robot_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>("ROBOT_ODOM_NAME", 5);
    imu_pub = g_node.get()->create_publisher<IMU_TYPE>("IMU_NAME", 30);

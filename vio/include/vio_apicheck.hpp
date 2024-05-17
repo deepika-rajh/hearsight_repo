@@ -14,8 +14,5 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #define ROBOT_ODOM_NAME "robot_odom"
 #define ODOM_TYPE nav_msgs::msg::Odometry
 
-#define IMU_NAME "sensor_imu"
-#define IMU_TYPE sensor_msgs::msg::Imu
-
 #define LABEL_IMG_NAME "vslam/labeled_img"
 #define LABEL_IMG_TYPE sensor_msgs::msg::Image

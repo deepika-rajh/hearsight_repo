@@ -23,17 +23,17 @@ TEST_F(NodeTestSuite, RosMessageTest1)
     rclcpp::Node::SharedPtr test_node = std::make_shared<rclcpp::Node>("test_node");
 
     uint16_t h = 0;
-    auto pub = test_node->create_publisher<ODOM_TYPE>(ODOM_RAW_NAME, 10);
-    auto sub = test_node->create_subscription<nav_msgs::msg::Odometry>(
-      "vslam_odom_raw", 10, 
-      [&h](const nav_msgs::msg::Odometry::SharedPtr msg) {
+    auto pub = test_node->create_publisher<OCCUPANCY_IMG_TYPE>(OCCUPANCY_IMG_NAME, 10);
+    auto sub = test_node->create_subscription<sensor_msgs::msg::Image>(
+      "vm/occupancy_img", 10,
+      [&h](const sensor_msgs::msg::Image::SharedPtr msg) {
           h = 1U;
       });
 
     EXPECT_EQ(pub->get_subscription_count(), 1U);
     EXPECT_EQ(sub->get_publisher_count(), 1U);
 
-    auto message = nav_msgs::msg::Odometry();
+    auto message = sensor_msgs::msg::Image();
 
     pub->publish(message);
     std::this_thread::sleep_for(std::chrono::seconds(1));

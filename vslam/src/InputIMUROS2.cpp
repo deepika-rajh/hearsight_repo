@@ -11,8 +11,10 @@ using std::placeholders::_1;
 
 InputIMUROS2::InputIMUROS2(rclcpp::Node * g_node)
 {
+    auto my_callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     rclcpp::SubscriptionOptions sub_options;
     sub_options.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
+    sub_options.callback_group = my_callback_group;
 
     imu_sub = g_node->create_subscription<sensor_msgs::msg::Imu>( "imu", 10,
                                    std::bind(&InputIMUROS2::imuROSCallback, this,  _1), sub_options);
