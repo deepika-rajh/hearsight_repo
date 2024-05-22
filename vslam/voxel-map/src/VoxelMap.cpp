@@ -14,6 +14,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "InputRGBDCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
+#include "vm_apicheck.hpp"
 
 //ROS2 common headers
 #include <rclcpp/rclcpp.hpp>
@@ -63,7 +64,7 @@ int main( int argc, char** argv )
    rclcpp::init(argc, argv);
    g_node = rclcpp::Node::make_shared("voxel_map");
 
-   occupancy_img_pub = image_transport::create_publisher(g_node.get(), "vm/occupancy_img");
+   occupancy_img_pub = image_transport::create_publisher(g_node.get(), OCCUPANCY_IMG_NAME);
 
    //add log for ARM platform to check boot time
    system("echo VM Start Initialization > /dev/kmsg");
@@ -73,7 +74,7 @@ int main( int argc, char** argv )
    GetCameraSettingFile( sensorSetting, "Configuration/vslam.cfg", cameraSettingFile);
    std::shared_ptr<CameraInterface> inputCamera = std::make_shared<InputRGBDCameraROS2>(g_node, sensorSetting+cameraSettingFile);
    std::shared_ptr<VMSystem> sys = VMSystem::Initialize(algSetting, inputCamera);
-   
+
    sys->Run();
 
    //wait to quit

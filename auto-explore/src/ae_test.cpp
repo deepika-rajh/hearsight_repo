@@ -24,7 +24,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include "explorer.h"
 #include "opencv2/opencv.hpp"
-
+#include "ae_apicheck.hpp"
 
 using std::placeholders::_1;
 explorer::Exploration * rvAMobj;
@@ -47,7 +47,7 @@ public:
 
         //s2:call the main function
         this->amr_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
-        this->goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/goal_pose", 10);
+        this->goal_pub_ = this->create_publisher<GOAL_TYPE>(GOAL_NAME, 10);
         //this->isProcessedRotate();
 
         //s3: subscription the map and pose

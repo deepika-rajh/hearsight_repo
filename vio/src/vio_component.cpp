@@ -5,19 +5,21 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 *******************************************************************************/
 #include "vio_component.hpp"
 #include "InputOv9282ROS2.h"
+#include "vio_apicheck.hpp"
 
-
-rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
-rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
+rclcpp::Publisher<ODOM_TYPE>::SharedPtr raw_pose_pub = nullptr;
+rclcpp::Publisher<ODOM_TYPE>::SharedPtr robot_pose_pub = nullptr;
 image_transport::Publisher    labeled_img_pub;
 
 namespace qrb_ros_vio
 {
 VioComponent::VioComponent(const rclcpp::NodeOptions& options) : Node("vio_node", options), imu(this)
 {
-    labeled_img_pub = image_transport::create_publisher(this, "vslam/labeled_img");
-    raw_pose_pub = create_publisher<nav_msgs::msg::Odometry>("vslam_odom_raw", 5);
-    robot_pose_pub = create_publisher<nav_msgs::msg::Odometry>("robot_odom", 5);
+    long boot_time = (rclcpp::Clock().now()).nanoseconds();
+
+    labeled_img_pub = image_transport::create_publisher(this, LABEL_IMG_NAME);
+    raw_pose_pub = create_publisher<ODOM_TYPE>(ODOM_RAW_NAME, 5);
+    robot_pose_pub = create_publisher<ODOM_TYPE>(ROBOT_ODOM_NAME, 5);
 
     imu.addCallback(VISLAMSystem::addIMU);
 
@@ -34,6 +36,10 @@ VioComponent::VioComponent(const rclcpp::NodeOptions& options) : Node("vio_node"
     sys = VISLAMSystemROS2::Initialize(sensorPath + algConfFile, outputPath, inputCamera, *this);
 
     sys->Run();
+
+    long start_time = (rclcpp::Clock().now()).nanoseconds();
+
+    printf("VIO boot up time is : %ld ns\n", start_time - boot_time);
 }
 
 VioComponent::~VioComponent()
