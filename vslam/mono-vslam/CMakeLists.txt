@@ -18,6 +18,12 @@ if(NOT BUILD_TESTING)
     add_compile_options(-Wall -Wextra -Wpedantic)
   endif()
 
+  add_definitions(-DARM_BASED)
+  add_definitions(-DROS_BASED)
+  add_definitions(-DWHEEL_SUPPORTED)
+  add_definitions(-DOPENCV_ENABLED)
+  add_definitions(-DIMU_SUPPORTED)
+
   # find dependencies
   find_package(ament_cmake_auto REQUIRED)
 

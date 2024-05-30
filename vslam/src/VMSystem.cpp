@@ -26,26 +26,24 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <rvQueue.h>
 #include <opencv2/opencv.hpp>
 
+#ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
-#include <std_msgs/msg/string.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-
-using std::placeholders::_1;
-
-extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
-extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
-extern rclcpp::Node::SharedPtr g_node;
-
-extern image_transport::Publisher    occupancy_img_pub;
+#endif
 
 queue_mt<sensor_hijack> hijackArray(BUF_SIZE);
 
 //static members definition
 rvVM* VMSystem::vmPtr = nullptr;
-
+#if 0
+rvDFS* VMSystem::dfsPtr = nullptr;
+uint8_t* VMSystem::lImage = nullptr;
+uint8_t* VMSystem::rImage = nullptr;
+float* VMSystem::depthImageF = nullptr;
+uint16_t* VMSystem::depthImageS = nullptr;
+#endif
 std::shared_ptr<VMSystem> VMSystem::t = nullptr;
 std::shared_ptr<VSLAMHijack> VMSystem::hijack = nullptr;
 VMSystem::SystemState VMSystem::systemState = KSLEEPING;
@@ -56,6 +54,7 @@ uint16_t* VMSystem::depthImage;
 
 int VMSystem::width = 0;
 int VMSystem::height = 0;
+
 
 /************************************** C APIs start ************/
 void Euler2Quaternion(double roll, double pitch, double yaw, double quaternion[4])
@@ -72,6 +71,18 @@ void Euler2Quaternion(double roll, double pitch, double yaw, double quaternion[4
     quaternion[2] = t0 * t2 * t5 + t1 * t3 * t4;  //y
     quaternion[3] = t1 * t2 * t4 - t0 * t3 * t5;  //z
 }
+
+#ifdef ROS_BASED
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+using std::placeholders::_1;
+
+extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
+extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
+extern rclcpp::Node::SharedPtr g_node;
+
+extern image_transport::Publisher    occupancy_img_pub;
 
 void pub_camera_raw_pose(const rvVSLAMPose& pose)
 {
@@ -176,6 +187,7 @@ void VMSystem::pose_callbackROS(const nav_msgs::msg::Odometry::SharedPtr msg) co
 
     printf("Input Camera pose time is %ld\n", cameraPose.timestamp);
 }
+#endif
 
 /**********************   C APIs end   ************************************/
 
@@ -187,6 +199,17 @@ VMSystem::~VMSystem()
 void VMSystem::deinit()
 {
     printf("VM de-initializing");
+
+#if 0
+    if (dfsPtr)
+    {
+       rvDFS_Deinitialize(dfsPtr);
+       delete[] lImage;
+       delete[] rImage;
+       delete[] depthImageF;
+       delete[] depthImageS;
+    }
+#endif
 
     if (vmPtr)
        rvVM_Deinitialize(vmPtr);
@@ -211,10 +234,12 @@ VMSystem::VMSystem(std::shared_ptr<CameraInterface>& camera)
         cameraConfiguration = inputCamera->getCameraConfiguration();
     }
 
+#ifdef ROS_BASED
     cameraInMapPose_sub = g_node->create_subscription<nav_msgs::msg::Odometry>("vslam_odom_raw", 10,
         std::bind(&VMSystem::pose_callbackROS, this, _1));
     state_sub = g_node->create_subscription<std_msgs::msg::String>("VM_state", 10,
         std::bind(&VMSystem::state_callbackROS, this, _1));
+#endif
 }
 
 void EulerToSO3_1(const float32_t* euler, float32_t* rotation)
@@ -255,10 +280,37 @@ std::shared_ptr<VMSystem> VMSystem::Initialize(const std::string& algSetting, st
             hijack->addReceiver(tmp);
         }
 
-        vmPtr = rvVM_Initialize(&(cameraConfiguration.stereo.camera[0]), algConfFile.c_str());
-        depthImage = new uint16_t[width * height];
+#if 0
+        if (cameraConfiguration.cameraType == rvStereo)
+        {
+           int minDisparity = 1;
+           int levelDisparity = 96;
+           rvDFSParameter dfs_parameter;
+           dfs_parameter.mode = RV_DFS_SPEED;
+           dfs_parameter.filterHeight = 11;
+           dfs_parameter.filterWidth = 15;
+           dfs_parameter.disparity.minDisparity = minDisparity;
+           dfs_parameter.disparity.numDisparityLevels = levelDisparity;
+           dfs_parameter.doRectification = true;
 
+           dfsPtr = rvDFS_Initialize(cameraConfiguration.stereo.camera[0].pixelWidth,
+              cameraConfiguration.stereo.camera[0].pixelHeight, cameraConfiguration.stereo.camera[0].pixelStride,
+              dfs_parameter, cameraConfiguration.stereo);
+
+           rvStereoCamera rectCamera = rvDFS_GetRectifiedCameraParameter(dfsPtr);
+           vmPtr = rvVM_Initialize(&rectCamera.camera[0], algConfFile.c_str(), dfsPtr);
+        }
+        else
+#endif
+        {
+           vmPtr = rvVM_Initialize(&(cameraConfiguration.stereo.camera[0]), algConfFile.c_str());
+        }
+        depthImage = new uint16_t[width * height];
+#if GDB_DEBUG  //SIGINT would go to gdb but not VM application
+        signal(48, Stop);
+#else
         signal(SIGINT, Stop);
+#endif
     }
 
     return t;
@@ -307,8 +359,23 @@ void VMSystem::addDepthImage(const int64_t timestamp, const uint8_t* imageBuf, c
         return;
 
     const uint16_t* depthBuf;
-
-    depthBuf = depthBufInput;
+#if 0
+    if (depthBufInput == NULL && dfsPtr != nullptr)
+    {
+       int pixelNum = cameraConfiguration.stereo.camera[0].pixelStride * cameraConfiguration.stereo.camera[0].pixelHeight;
+       memcpy(lImage, imageBuf, pixelNum);
+       memcpy(rImage, imageBuf + pixelNum, pixelNum);
+       rvDFS_CalculateDepth(dfsPtr, lImage, rImage, depthImageF);
+       for (size_t i = 0; i < pixelNum; i++)
+          depthImageS[i] = (uint16_t)(depthImageF[i]);
+       cv::Mat depthMat(cameraConfiguration.stereo.camera[0].pixelHeight, cameraConfiguration.stereo.camera[0].pixelStride, CV_16UC1, depthImageS);
+       depthBuf = depthImageS;
+    }
+    else
+#endif
+    {
+       depthBuf = depthBufInput;
+    }
 
     rvVM_AddOneImage(vmPtr, imageBuf, depthBuf, timestamp);
 
@@ -381,7 +448,32 @@ void VMSystem::addHijack(bool /*status*/, int64_t /*timestamp*/)
 
 void VMSystem::Spin()
 {
+#ifdef ROS_BASED
     rclcpp::spin(g_node);
+#elif defined (ROS1_BASED)
+    ros::spin();
+#else 
+
+    while (systemState != KSTOPPING)
+    {
+        VSLAM_SLEEP(10);
+#ifdef SIMULATION
+        rvVSLAMPose  rawPose = rvVWSLAM_GetVslamRawPose(vslamPtr);
+        {
+            std::lock_guard<std::mutex> lk(mut);
+            rawPoseTimeStamp = rawPose.timestampNs;
+            data_cond.notify_all();
+        }
+#endif //SIMULATION
+    }
+#ifdef SIMULATION
+    {
+        std::lock_guard<std::mutex> lk(mut);
+        rawPoseTimeStamp = currentImageTimeStamp;
+        data_cond.notify_all();
+    }
+#endif //SIMULATION
+#endif
 }
 
 void VMSystem::state_callback(const std::string& msg)

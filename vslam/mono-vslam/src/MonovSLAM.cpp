@@ -79,8 +79,10 @@ int main( int argc, char** argv )
       sensorSetting = sensorSetting + '/';
    }
 
+#ifdef ARM_BASED
    //add log for ARM platform to check boot time
    system("echo vSLAM Start Initialization > /dev/kmsg");
+#endif
 
    std::string cameraSettingFile;
    InputWheelROS wheel;
