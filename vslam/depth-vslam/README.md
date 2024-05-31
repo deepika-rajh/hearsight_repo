@@ -22,20 +22,16 @@ The depth-vslam publishes and subscribes to the following topics.
 - The RealSenseTM D455 camera is available.
 - Wi-Fi is enabled with the steps in [Configure Wi-Fi](https://docs.qualcomm.com/bundle/resource/topics/80-63942-3_53398/configue-wifi_3_1_3.html).
 - Generate and install slam-gmapping IPKs in [Configure slam-gmaaping](https://docs.qualcomm.com/bundle/resource/topics/80-63942-3_53398/slam-gmapping-ipk-generation-and-installation_3_1_4.html)
-- Enable ssh:
-```bash
-adb shell "setenforce 0"
-adb shell "systemctl restart sshdgenkeys.service"
-```
+- Setup SSH with the steps in [How to ssh](https://docs.qualcomm.com/bundle/resource/topics/80-70014-254_55940/how_to.html#how-to-ssh-)
 
 ## Build
 
 Build VSLAM in QIRP SDK:
 ```bash
-cd <qirp-workspace>
+cd <qirp-decompressed-workspace>
 source setup.sh
 
-cd sample-code/qirp_nodes/navigation_nodes/vslam/mono-vslam
+cd sample-code/qirp_nodes/navigation_nodes/vslam/depth-vslam
 export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr;${OECORE_NATIVE_SYSROOT}/usr"
 export PYTHONPATH=${PYTHONPATH}:${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages
 
@@ -51,18 +47,19 @@ colcon build --merge-install --cmake-args \
 Push VSLAM to device:
 Please make sure QIRP is installed on device before you push the VSLAM to device.
 ```bash
-cd sample-code/qirp_nodes/navigation_nodes/vslam/mono-vslam/install
+cd sample-code/qirp_nodes/navigation_nodes/vslam/depth-vslam/install/depth-vslam
 tar czvf vslam.tar.gz lib share
-adb push vslam.tar.gz /opt/
-adb shell "tar -zxf /opt/vslam.tar.gz -C /opt/qcom/qirp-sdk/usr/"
+scp vslam.tar.gz root@[ip-addr]:/opt/
+ssh ssh root@[ip-addr]
+(ssh) tar -zxf /opt/vslam.tar.gz -C /opt/qcom/qirp-sdk/usr/
 ```
 
 ## Configuration
 
 **1. RB3 Gen2 environment configuration**
 ```bash
-cd /opt/qcom/qirp-sdk/etc
-vi car.conf
+(ssh) cd /opt/qcom/qirp-sdk/etc
+(ssh) vi car.conf
 # add 2 lines
 #     - car_type:0
 #     - rc_enable:0
@@ -81,38 +78,39 @@ Note: All terminals run in Ubuntu PC.
 All terminals need to execute the following commands:
 
 ```bash
-export HOME=/opt
-source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
-export ROS_DOMAIN_ID=xxx
+(ssh) export HOME=/opt
+(ssh) source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
+(ssh) export ROS_DOMAIN_ID=xxx
+(ssh) setenforce 0
 ```
 > Note: Value range of `ROS_DOMAIN_ID`: [0, 232]
 
 **1. Run Realsense ROS2 node    //terminal1**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-ros2 launch realsense2_camera rs_launch.py enable_sync:=true align_depth.enable:=true rgb_camera.profile:=848x480x30 depth_module.profile:=848x480x30
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) ros2 launch realsense2_camera rs_launch.py enable_sync:=true align_depth.enable:=true rgb_camera.profile:=848x480x30 depth_module.profile:=848x480x30
 ```
 
 **2. Run depth-vSLAM in depth_init mode   //terminal2**
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-cd /opt/qcom/qirp-sdk/usr/lib/depth-vslam
-chmod 777 depth-vslam
-./depth-vslam
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) cd /opt/qcom/qirp-sdk/usr/lib/depth-vslam
+(ssh) chmod 777 depth-vslam
+(ssh) ./depth-vslam
 ```
 
 **3. Run robot-control ROS2 node    //terminal3**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-ros2 launch qti_robot_amr_ctrl qti_robot_amr_ctrl.launch.py
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) ros2 launch qti_robot_amr_ctrl qti_robot_amr_ctrl.launch.py
 ```
 
 **4. Run keyboard-ctrl ROS2 node    //terminal4**
 
 ```bash
-ros2 run qti_robot_keyboard qti_keyboard
+(ssh) ros2 run qti_robot_keyboard qti_keyboard
 ```
 
 ## Ubuntu PC configuration

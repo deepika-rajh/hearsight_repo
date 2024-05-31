@@ -7,17 +7,13 @@ voxel-map is used to support for Voxel Map and point cloud when running vSLAM. I
 - The RealSenseTM D455 camera is available.
 - Wi-Fi is enabled with the steps in [Configure Wi-Fi](https://docs.qualcomm.com/bundle/resource/topics/80-63942-3_53398/configue-wifi_3_1_3.html).
 - Generate and install slam-gmapping IPKs in [Configure slam-gmaaping](https://docs.qualcomm.com/bundle/resource/topics/80-63942-3_53398/slam-gmapping-ipk-generation-and-installation_3_1_4.html)
-- Enable ssh:
-```bash
-adb shell "setenforce 0"
-adb shell "systemctl restart sshdgenkeys.service"
-```
+- Setup SSH with the steps in [How to ssh](https://docs.qualcomm.com/bundle/resource/topics/80-70014-254_55940/how_to.html#how-to-ssh-)
 
 ## Build
 
 Build voxel-map in QIRP SDK:
 ```bash
-cd <qirp-workspace>
+cd <qirp-decompressed-workspace>
 source setup.sh
 
 cd sample-code/qirp_nodes/navigation_nodes/vslam/voxel-map
@@ -36,18 +32,19 @@ colcon build --merge-install --cmake-args \
 Push voxel-map to device:
 Please make sure QIRP is installed on device before you push the VSLAM to device.
 ```bash
-cd sample-code/qirp_nodes/navigation_nodes/vslam/voxel-map/install
+cd sample-code/qirp_nodes/navigation_nodes/vslam/voxel-map/install/voxel-map
 tar czvf voxel-map.tar.gz lib share
-adb push voxel-map.tar.gz /opt/
-adb shell "tar -zxf /opt/voxel-map.tar.gz -C /opt/qcom/qirp-sdk/usr/"
+scp voxel-map.tar.gz root@[ip-addr]:/opt/
+ssh ssh root@[ip-addr]
+(ssh) tar -zxf /opt/voxel-map.tar.gz -C /opt/qcom/qirp-sdk/usr/
 ```
 
 ## Configuration
 
 **1. RB3 Gen2 environment configuration**
 ```bash
-cd /opt/qcom/qirp-sdk/etc
-vi car.conf
+(ssh) cd /opt/qcom/qirp-sdk/etc
+(ssh) vi car.conf
 # add 2 lines
 #     - car_type:0
 #     - rc_enable:0
@@ -65,48 +62,48 @@ ssh root@IP
 All terminals need to execute the following commands:
 
 ```bash
-export HOME=/opt
-source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
-export ROS_DOMAIN_ID=xxx
+(ssh) export HOME=/opt
+(ssh) source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
+(ssh) export ROS_DOMAIN_ID=xxx
 ```
 > Note: Value range of `ROS_DOMAIN_ID`: [0, 232]
 
 **1. Run Realsense ROS2 node    //terminal1**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-ros2 launch realsense2_camera rs_launch.py enable_sync:=true align_depth.enable:=true rgb_camera.profile:=848x480x30 depth_module.profile:=848x480x30
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) ros2 launch realsense2_camera rs_launch.py enable_sync:=true align_depth.enable:=true rgb_camera.profile:=848x480x30 depth_module.profile:=848x480x30
 ```
 
 **2. Run depth-vSLAM in depth_init mode   //terminal2**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-cd /opt/qcom/qirp-sdk/usr/lib/depth-vslam
-chmod 777 depth-vslam
-./depth-vslam
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) cd /opt/qcom/qirp-sdk/usr/lib/depth-vslam
+(ssh) chmod 777 depth-vslam
+(ssh) ./depth-vslam
 ```
 
 **3. Run robot-control ROS2 node    //terminal3**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-ros2 launch qti_robot_amr_ctrl qti_robot_amr_ctrl.launch.py
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) ros2 launch qti_robot_amr_ctrl qti_robot_amr_ctrl.launch.py
 ```
 
 **4. Run voxel-map ROS2 node    //terminal4**
 
 ```bash
-export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
-cd /opt/qcom/qirp-sdk/usr/lib/voxel-map
-chmod 777 voxel-map
-./voxel-map
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) cd /opt/qcom/qirp-sdk/usr/lib/voxel-map
+(ssh) chmod 777 voxel-map
+(ssh) ./voxel-map
 ```
 
 **5. Run keyboard-ctrl ROS2 node    //terminal5**
 
 ```bash
-ros2 run qti_robot_keyboard qti_keyboard
+(ssh) ros2 run qti_robot_keyboard qti_keyboard
 ```
 
 ## Ubuntu PC configuration
