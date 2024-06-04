@@ -15,10 +15,12 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "VSLAMSystem.h"
 #include "rvVIO.h"
 
+#ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <image_transport/image_transport.hpp>
 #include <cv_bridge/cv_bridge.h>
+#endif
 
 #ifdef STEREO_ROS
 #include <ros/ros.h>
@@ -57,19 +59,22 @@ Visualiser::~Visualiser()
       WriteGrayBitmap( occupancyGridImage, "OccupancyImage.bmp", occupancyGridWidth, occupancyGridHeight, 0, 0, occupancyGridWidth, 0 );
       delete[]occupancyGridImage;
    }
- 
+      
    occupancyGridMutex.unlock();
 }
 
 
-void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE quality, std::string title, const int& pointNum, const rvVISLAMMapPoint* pPoints)
+void
+Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE quality, std::string title, const int& pointNum, const rvVISLAMMapPoint* pPoints)
 {
+#ifdef OPENCV_ENABLED
     cv::Mat rview;
     DrawVIOLabelledImage(quality, image, imageWidth, imageHeight, pointNum, pPoints, rview);
 
     //char imageName[256];
     //sprintf( imageName, "%s_labelledImage_%" PRId64 ".png", title.c_str(), poseWithTime.timestamp );
     //cv::imwrite( imageName, rview );
+#endif
 
 //#ifndef ARM_BASED
 #ifndef __linux__
@@ -77,6 +82,7 @@ void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE qual
     cv::waitKey(1);
 #endif
 
+#ifdef ROS_BASED
     extern image_transport::Publisher    labeled_img_pub;
     static int divider = 0;
 
@@ -99,7 +105,7 @@ void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE qual
 
     divider++;
     if (divider > 14) divider = 0;
-#if STEREO_ROS
+#elif STEREO_ROS
     extern image_transport::Publisher    labeled_img_pub;
     static int divider = 0;
 
@@ -126,14 +132,20 @@ void Visualiser::ShowVIOPoints(const uint8_t* image,RV_VSLAM_TRACKING_STATE qual
 }
 
 
-void Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, const rvVWSLAMStatus &status )
-{
+
+
+
+void 
+Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, const rvVWSLAMStatus &status )
+{   
+#ifdef OPENCV_ENABLED
    cv::Mat rview;
    DrawLabelledImage( quality, undistortedImage, imageWidth, imageHeight, status, rview );
 
    //char imageName[256];
    //sprintf( imageName, "%s_labelledImage_%" PRId64 ".png", title.c_str(), poseWithTime.timestamp );
    //cv::imwrite( imageName, rview );
+#endif
 
 //#ifndef ARM_BASED
 #ifndef __linux__
@@ -141,6 +153,7 @@ void Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, 
    cv::waitKey( 1 );
 #endif
 
+#ifdef ROS_BASED
    extern image_transport::Publisher    labeled_img_pub;
    static int divider = 0;
 
@@ -163,7 +176,7 @@ void Visualiser::ShowPoints(RV_VSLAM_TRACKING_STATE quality, std::string title, 
 
    divider++;
    if(divider > 14) divider = 0;
-#if STEREO_ROS
+#elif STEREO_ROS
    extern image_transport::Publisher    labeled_img_pub;
    static int divider = 0;
 
@@ -264,6 +277,7 @@ Visualiser::ShowGridMap(int64_t timestamp, int poseX, int poseY)
 }
 #endif
 
+#ifdef OPENCV_ENABLED
 void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t* image, int widthFrame, int heightFrame, const int& pointNum, const rvVISLAMMapPoint* pPoints, cv::Mat& rview)
 {
     rview = cv::Mat(heightFrame, widthFrame, CV_8UC1);
@@ -295,14 +309,16 @@ void Visualiser::DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uin
 
     return;
 }
+#endif
 
+#ifdef OPENCV_ENABLED
 void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t * image, int widthFrame, int heightFrame, const rvVWSLAMStatus & status, cv::Mat & rview )
 {
    rview = cv::Mat( heightFrame, widthFrame, CV_8UC1 );
    memcpy( rview.data, image, heightFrame* widthFrame );
 
    cv::cvtColor( rview, rview,cv::COLOR_GRAY2BGR );
-
+   
    int obsNum = status._MatchedMapPointNum + status._MisMatchedMapPointNum;
    if( obsNum > 0 )
    {
@@ -349,6 +365,8 @@ void Visualiser::DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_
 
    return;
 }
+#endif
+
 
 void Visualiser::WriteGrayBitmap( unsigned char *iImgData, char *iImgName, int iWidth, int iHeight, int iPosX, int iPosY, int iFullLine, int Flag )
 {

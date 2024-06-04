@@ -14,6 +14,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "InputMonoCameraROS2.h"
 #include "ParseSensorParam.h"
 #include "InputWheelROS.h"
+#include "vslam_apicheck.hpp"
 #include <VSLAMWheel.h>
 
 //ROS2 common headers
@@ -25,7 +26,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <image_transport/image_transport.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <vslam_apicheck.hpp>
 
 bool debugLevel = 0;
 bool RV_STDERR_LOGGING = true;
@@ -35,9 +35,9 @@ rclcpp::Node::SharedPtr g_node = nullptr;
 image_transport::Publisher    labeled_img_pub;
 image_transport::Publisher    occupancy_img_pub;
 rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_pub = nullptr;
-rclcpp::Publisher<ODOM_TYPE>::SharedPtr raw_pose_pub = nullptr;
-rclcpp::Publisher<ODOM_TYPE>::SharedPtr robot_pose_pub = nullptr;
-rclcpp::Publisher<IMU_TYPE>::SharedPtr imu_pub = nullptr;
+rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub = nullptr;
+rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub = nullptr;
+rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub = nullptr;
 
 static void INT_handler (int /*sig*/)
 {
@@ -62,10 +62,10 @@ int main( int argc, char** argv )
    signal(SIGINT, INT_handler);
    g_node = rclcpp::Node::make_shared("mono_vslam");
 
-   labeled_img_pub = image_transport::create_publisher(g_node.get(), "LABEL_IMG_NAME");
-   raw_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>("ODOM_RAW_NAME", 5);
-   robot_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>("ROBOT_ODOM_NAME", 5);
-   imu_pub = g_node.get()->create_publisher<IMU_TYPE>("IMU_NAME", 30);
+   labeled_img_pub = image_transport::create_publisher(g_node.get(), LABEL_IMG_NAME);
+   raw_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>(ODOM_RAW_NAME, 5);
+   robot_pose_pub = g_node.get()->create_publisher<ODOM_TYPE>(ROBOT_ODOM_NAME, 5);
+   imu_pub = g_node.get()->create_publisher<IMU_TYPE>(IMU_NAME, 30);
 
    char tmp = *(output.end() - 1);
    if( tmp != '/' && tmp != '\\' )

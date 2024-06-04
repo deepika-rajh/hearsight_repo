@@ -24,10 +24,10 @@ class InputWheelROS
 public:
    InputWheelROS();
    ~InputWheelROS();
-   
+
    void addCallback(WheelCallback callBack)
    {
-	   wheelCallback = callBack;
+       wheelCallback = callBack;
    }
 
 private:

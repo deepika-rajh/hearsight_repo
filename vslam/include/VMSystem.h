@@ -37,7 +37,7 @@ inline void mySleep(int x)
 
 #ifdef ROS_BASED
 #include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/string.hpp> 
+#include <std_msgs/msg/string.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #elif ROS1_BASED
 #include <ros/ros.h>

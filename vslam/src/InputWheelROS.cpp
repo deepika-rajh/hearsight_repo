@@ -60,7 +60,6 @@ void InputWheelROS::wheelOdomCallback( const nav_msgs::Odometry::ConstPtr msg )
    wheelodom.linear_velocity = msg->twist.twist.linear.x;
    wheelodom.angular_velocity = msg->twist.twist.angular.z;
    wheelCallback(&wheelodom);
-   //RV_INFO("wheelOdomCallback %ld", wheelodom.timestamp);
 }
 
 

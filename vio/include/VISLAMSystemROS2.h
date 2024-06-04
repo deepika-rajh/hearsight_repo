@@ -15,8 +15,13 @@ public:
     VISLAMSystemROS2(rclcpp::Node & g_node, std::shared_ptr<CameraInterface>& camera);
     ~VISLAMSystemROS2();
     static std::shared_ptr<VISLAMSystem> Initialize(const std::string& algSetting, const std::string& outputDir,
-        std::shared_ptr<CameraInterface> camera, rclcpp::Node & g_node);
+    std::shared_ptr<CameraInterface> camera, rclcpp::Node & g_node);
     virtual void deinit0();
+    static void shutdown(int signal)
+    {
+        VISLAMSystem::Stop(signal);
+        rclcpp::shutdown();
+    }
 
 private:
 

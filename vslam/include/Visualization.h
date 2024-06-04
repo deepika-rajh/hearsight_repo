@@ -10,7 +10,9 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <mutex>
 #include "rvVWSLAM.h"
 #include "rvVIO.h"
+#ifdef OPENCV_ENABLED
 #include "opencv2/opencv.hpp"
+#endif
 
 typedef struct
 {
@@ -89,8 +91,11 @@ private:
    int occupancyGridWidth;
    uint8_t * occupancyGridImage;
 
+#ifdef OPENCV_ENABLED
    void DrawVIOLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t* image, int widthFrame, int heightFrame, const int& pointNum, const rvVISLAMMapPoint* pPoints, cv::Mat& rview);
+
    void DrawLabelledImage(RV_VSLAM_TRACKING_STATE quality, const uint8_t * image, int widthFrame, int heightFrame, const rvVWSLAMStatus & status, cv::Mat & rview );
+#endif
 };
 
 #endif //VISUALIZATION

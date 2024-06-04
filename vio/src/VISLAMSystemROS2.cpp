@@ -96,6 +96,7 @@ VISLAMSystemROS2::Initialize(const std::string& algSetting, const std::string& o
    {
       t = std::make_shared<VISLAMSystemROS2>(g_node, camera);
       VISLAMSystem::Initialize(algSetting, outputDir);
+      signal(SIGINT, shutdown);
    }
    return t;
 }

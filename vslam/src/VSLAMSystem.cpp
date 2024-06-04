@@ -343,7 +343,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       system("echo vSLAM Initialization is finished > /dev/kmsg");
       isInitDone = true;
    }
-#ifdef SIMULATION   
+#ifdef SIMULATION
    {
       std::lock_guard<std::mutex> lk( mut );
       currentImageTimeStamp = timestamp;
@@ -394,7 +394,7 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
       }
    }
    rvVSLAMPose rawPose = rvVWSLAM_GetVslamRawPose(vslamPtr);
-   
+
 #ifdef ROS_BASED
    if(rawPose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT )
    {
