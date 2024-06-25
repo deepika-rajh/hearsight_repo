@@ -28,7 +28,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 using std::placeholders::_1;
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
-extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
 
 void VISLAMSystemROS2::pub_camera_raw_pose(const rvVISLAMPose & pose)
 {
@@ -54,32 +53,6 @@ void VISLAMSystemROS2::pub_camera_raw_pose(const rvVISLAMPose & pose)
   odom_msg->twist.twist.angular.z = 0;
 
   raw_pose_pub->publish(std::move(odom_msg));
-}
-
-void pub_robot_pose(const rvVISLAMPose& pose)
-{
-  auto odom_msg = std::make_unique<nav_msgs::msg::Odometry>();
-
-  odom_msg->header.frame_id = "odom";
-  odom_msg->child_frame_id  = "base_link";
-  odom_msg->header.stamp = rclcpp::Time(pose.time, RCL_ROS_TIME);
-
-  odom_msg->pose.pose.position.x = pose.bodyPose.matrix[0][3];
-  odom_msg->pose.pose.position.y = pose.bodyPose.matrix[1][3];
-  odom_msg->pose.pose.position.z = pose.bodyPose.matrix[2][3];
-
-  float qw, qx, qy, qz;
-  Matrix2Quaternion(pose.bodyPose.matrix, qw, qx, qy, qz);
-
-  odom_msg->pose.pose.orientation.x =  qx;
-  odom_msg->pose.pose.orientation.y =  qy;
-  odom_msg->pose.pose.orientation.z =  qz;
-  odom_msg->pose.pose.orientation.w =  qw;
-
-  odom_msg->twist.twist.linear.x  = 0;
-  odom_msg->twist.twist.angular.z = 0;
-
-  robot_pose_pub->publish(std::move(odom_msg));
 }
 
 VISLAMSystemROS2::VISLAMSystemROS2(rclcpp::Node & g_node_, std::shared_ptr<CameraInterface>& camera):VISLAMSystem(camera), node(g_node_)
