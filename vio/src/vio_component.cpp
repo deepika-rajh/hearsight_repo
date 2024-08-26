@@ -8,7 +8,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include "vio_apicheck.hpp"
 
 rclcpp::Publisher<ODOM_TYPE>::SharedPtr raw_pose_pub = nullptr;
-rclcpp::Publisher<ODOM_TYPE>::SharedPtr robot_pose_pub = nullptr;
 image_transport::Publisher    labeled_img_pub;
 
 namespace qrb_ros_vio
@@ -19,13 +18,12 @@ VioComponent::VioComponent(const rclcpp::NodeOptions& options) : Node("vio_node"
 
     labeled_img_pub = image_transport::create_publisher(this, LABEL_IMG_NAME);
     raw_pose_pub = create_publisher<ODOM_TYPE>(ODOM_RAW_NAME, 5);
-    robot_pose_pub = create_publisher<ODOM_TYPE>(ROBOT_ODOM_NAME, 5);
 
     imu.addCallback(VISLAMSystem::addIMU);
 
     std::string sensorPath = this->declare_parameter<std::string>("sensor_file_path", "/opt/qcom/qirf-sdk/data/misc/vwslam/");
     std::string outputPath = this->declare_parameter<std::string>("output_path", "/opt/qcom/qirf-sdk/data/vwslam/");
-	std::string algConfFile = this->declare_parameter<std::string>("algorithm_file", "Configuration/vislam.cfg");
+    std::string algConfFile = this->declare_parameter<std::string>("algorithm_file", "Configuration/vislam.cfg");
 
     std::string cameraSettingFile;
     GetCameraSettingFile(sensorPath, algConfFile, cameraSettingFile);
@@ -54,7 +52,6 @@ VioComponent::~VioComponent()
 
     labeled_img_pub.shutdown();
     raw_pose_pub = nullptr;
-    robot_pose_pub = nullptr;
 }
 }
 

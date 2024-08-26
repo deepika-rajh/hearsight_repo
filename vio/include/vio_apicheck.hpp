@@ -11,7 +11,6 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <sensor_msgs/msg/image.hpp>
 
 #define ODOM_RAW_NAME "vslam_odom_raw"
-#define ROBOT_ODOM_NAME "robot_odom"
 #define ODOM_TYPE nav_msgs::msg::Odometry
 
 #define LABEL_IMG_NAME "vslam/labeled_img"
