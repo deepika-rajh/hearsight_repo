@@ -13,13 +13,15 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 #include <rvDFS.h>
 
 #include "rv_dfs_base.h"
+#include "rv_multi_dfs_base.h"
 
-namespace rv_dfs
-{
+namespace rv_dfs {
 
-    template<typename T>
-    RV_API std::shared_ptr<DFSBase<T>> CreateDFSBase(const rvDFSMode& dfs_mode);
+template <typename T>
+RV_API std::shared_ptr<DFSBase<T>> CreateDFSBase(const rvDFSMode &dfs_mode);
 
-}
+template <typename T>
+RV_API std::shared_ptr<DFSThreadBase<T>> CreateMultiDFSBase();
+} // namespace rv_dfs
 
 #endif
