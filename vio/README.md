@@ -67,9 +67,11 @@ Please make sure QIRP is installed on device before you push the VIO to device.
 ```bash
 cd sample-code/qirp_nodes/navigation_nodes/vio/install
 tar czvf vio.tar.gz lib share
-scp vio.tar.gz root@[ip-addr]:/opt/
 ssh root@[ip-addr]
-(ssh) tar -zxf /opt/vio.tar.gz -C /opt/qcom/qirp-sdk/usr/
+(ssh) mount -o remount rw /
+scp vio.tar.gz root@[ip-addr]:/home/
+ssh root@[ip-addr]
+(ssh) tar -zxf /home/vio.tar.gz -C /usr/
 ```
 
 # Configuration
@@ -85,8 +87,8 @@ ssh root@IP
 **1. Run vio in #terminal1**
 
 ```bash
-(ssh) export HOME=/opt
-(ssh) source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
+(ssh) export HOME=/home
+(ssh) source /usr/bin/ros_setup.sh && source /usr/share/qirp-setup.sh
 (ssh) export ROS_DOMAIN_ID=xx
 (ssh) setenforce 0
 (ssh) ros2 launch qrb_ros_vio vio.launch.py
