@@ -38,8 +38,8 @@ bool RV_STDERR_LOGGING = true;
 static char *helpMsg =
       "mv_vwslam \n"
       "Usage: mv_vwslam [-options]\n"
-      "-c : set configuration files path, default path is /opt/qcom/qirf-sdk/data/misc/vwslam/ \n"
-      "-o : set output files path, default path is /opt/qcom/qirf-sdk/data/vwslam/ \n"
+      "-c : set configuration files path, default path is /usr/share/mono-vslam/ \n"
+      "-o : set output files path, default path is /usr/share/mono-vslam/vwslam/ \n"
       "-d : set vslam debug level: enable debug info(1), disable debug info(0) \n"
       "-v : get vslam app version \n"
       "-h : print help msg\n";
@@ -56,9 +56,9 @@ rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub = nullptr;
 
 int main( int argc, char** argv )
 {
-   std::string sensorSetting = std::string( "/opt/qcom/qirf-sdk/data/misc/vwslam/" );
+   std::string sensorSetting = std::string( "/usr/share/mono-vslam/" );
 
-   std::string algSetting="/opt/qcom/qirf-sdk/data/misc/vwslam/Configuration/vm.cfg";
+   std::string algSetting="/usr/share/mono-vslam/Configuration/vm.cfg";
 
    if (argc == 2)
    {
