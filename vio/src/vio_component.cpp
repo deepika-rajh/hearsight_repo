@@ -21,8 +21,8 @@ VioComponent::VioComponent(const rclcpp::NodeOptions& options) : Node("vio_node"
 
     imu.addCallback(VISLAMSystem::addIMU);
 
-    std::string sensorPath = this->declare_parameter<std::string>("sensor_file_path", "/opt/qcom/qirf-sdk/data/misc/vwslam/");
-    std::string outputPath = this->declare_parameter<std::string>("output_path", "/opt/qcom/qirf-sdk/data/vwslam/");
+    std::string sensorPath = this->declare_parameter<std::string>("sensor_file_path", "/usr/share/mono-vslam/");
+    std::string outputPath = this->declare_parameter<std::string>("output_path", "/usr/share/mono-vslam/vwslam/");
     std::string algConfFile = this->declare_parameter<std::string>("algorithm_file", "Configuration/vislam.cfg");
 
     std::string cameraSettingFile;
