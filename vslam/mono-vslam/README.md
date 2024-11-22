@@ -49,16 +49,18 @@ Please make sure QIRP is installed on device before you push the VSLAM to device
 ```bash
 cd sample-code/qirp_nodes/navigation_nodes/vslam/mono-vslam/install/mono-vslam
 tar czvf vslam.tar.gz lib share
-scp vslam.tar.gz root@[ip-addr]:/opt/
+ssh root@[ip-addr]
+(ssh) mount -o remount rw /
+scp vslam.tar.gz root@[ip-addr]:/home/
 ssh ssh root@[ip-addr]
-(ssh) tar -zxf /opt/vslam.tar.gz -C /opt/qcom/qirp-sdk/usr/
+(ssh) tar -zxf /home/vslam.tar.gz -C /usr/
 ```
 
 ## Configuration
 
 **1. RB3 Gen2 environment configuration**
 ```bash
-(ssh) cd /opt/qcom/qirp-sdk/etc
+(ssh) cd /etc
 (ssh) vi car.conf
 # add 2 lines
 #     - car_type:0
@@ -76,8 +78,8 @@ ssh root@IP
 All terminals need to execute the following commands:
 
 ```bash
-(ssh) export HOME=/opt
-(ssh) source /usr/bin/ros_setup.sh && source /opt/qcom/qirp-sdk/qirp-setup.sh
+(ssh) export HOME=/home
+(ssh) source /usr/bin/ros_setup.sh && source /usr/share/qirp-setup.sh
 (ssh) export ROS_DOMAIN_ID=xxx
 (ssh) setenforce 0
 ```
@@ -86,15 +88,15 @@ All terminals need to execute the following commands:
 **1. Run Realsense ROS2 node    //terminal1**
 
 ```bash
-(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/data/misc/vwslam/Configuration/vslam-node_profile.xml
 (ssh) ros2 launch realsense2_camera rs_launch.py enable_depth:=false rgb_camera.profile:=848x480x30
 ```
 
 **2. Run mono-vSLAM   //terminal2**
 
 ```bash
-(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/(ssh) Configuration/vslam-node_profile.xml
-(ssh) cd /opt/qcom/qirp-sdk/usr/lib/mono-vslam
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/data/misc/vwslam/(ssh) Configuration/vslam-node_profile.xml
+(ssh) cd /usr/lib/mono-vslam
 (ssh) chmod 777 mono-vslam
 (ssh) ./mono-vslam
 ```
@@ -102,7 +104,7 @@ All terminals need to execute the following commands:
 **3. Run robot-control ROS2 node    //terminal3**
 
 ```bash
-(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/opt/qcom/qirp-sdk/data/misc/vwslam/Configuration/vslam-node_profile.xml
+(ssh) export FASTRTPS_DEFAULT_PROFILES_FILE=/data/misc/vwslam/Configuration/vslam-node_profile.xml
 (ssh) ros2 launch qti_robot_amr_ctrl qti_robot_amr_ctrl.launch.py
 ```
 
