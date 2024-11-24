@@ -47,9 +47,9 @@ static void INT_handler (int /*sig*/)
 
 int main( int argc, char** argv )
 {
-   std::string sensorSetting = std::string( "/opt/qcom/qirf-sdk/data/misc/vwslam/" );
-   std::string algSetting="/opt/qcom/qirf-sdk/data/misc/vwslam/Configuration/rgbdWSlam.cfg";
-   std::string output="/opt/qcom/qirf-sdk/data/vwslam/";
+   std::string sensorSetting = std::string( "/usr/share/mono-vslam/" );
+   std::string algSetting="/usr/share/mono-vslam/Configuration/rgbdWSlam.cfg";
+   std::string output="/usr/share/mono-vslam/vwslam/";
 
    if (argc == 4)
    {

@@ -40,7 +40,7 @@ public:
 
         //s1:initialization
         std::string confPath;
-        confPath.append("/opt/qcom/qirf-sdk/data/misc/auto-explore/Configuration/aeconfiguration.yaml");
+        confPath.append("/usr/share/auto-explore/Configuration/aeconfiguration.yaml");
         RCLCPP_INFO(this->get_logger(), "root configuration path is : %s\n", confPath.c_str());
 
         rvAMobj = new explorer::Exploration(confPath);
@@ -103,9 +103,9 @@ private:
 
     void mapSaver(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
     {
-        FILE * mapmeta = fopen("/opt/qcom/qirf-sdk/data/auto-explore/map.yaml", "wb");
+        FILE * mapmeta = fopen("/usr/share/auto-explore/map.yaml", "wb");
 
-        fprintf(mapmeta, "image: /opt/qcom/qirf-sdk/data/auto-explore/map.pgm\n");
+        fprintf(mapmeta, "/usr/share/auto-explore/map.pgm\n");
         fprintf(mapmeta, "mode: trinary\n");
         fprintf(mapmeta, "resolution: %f\n", map->info.resolution);
         fprintf(mapmeta, "origin: [%f, %f, %f]\n", map->info.origin.position.x, map->info.origin.position.y, map->info.origin.position.z);
@@ -133,8 +133,8 @@ private:
             }
         }
 
-        imwrite("/opt/qcom/qirf-sdk/data/auto-explore/map.pgm", mapSaver);
-        RCLCPP_INFO(this->get_logger(), "Finish saving map in /opt/qcom/qirf-sdk/data/auto-explore\n");
+        imwrite("/usr/share/auto-explore/map.pgm", mapSaver);
+        RCLCPP_INFO(this->get_logger(), "Finish saving map in /usr/share/auto-explore\n");
     }
 
     void topic_map_callback(const nav_msgs::msg::OccupancyGrid::SharedPtr map)
