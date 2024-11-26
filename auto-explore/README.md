@@ -49,16 +49,18 @@ Please make sure QIRP is installed on device before you push the auto-explore to
 ```bash
 cd sample-code/qirp_nodes/navigation_nodes/qrb_ros_auto_mapping/auto-explore/install/auto-explore
 tar czvf auto-explore.tar.gz lib share
-scp auto-explore.tar.gz root@[ip-addr]:/opt/
+ssh root@[ip-addr]
+(ssh) mount -o remount rw /
+scp auto-explore.tar.gz root@[ip-addr]:/home/
 ssh ssh root@[ip-addr]
-(ssh) tar -zxf /opt/auto-explore.tar.gz -C /opt/qcom/qirp-sdk/usr/
+(ssh) tar -zxf /home/auto-explore.tar.gz -C /usr/
 ```
 
 # Configuration
 
 **1. RB3 Gen2 environment configuration**
 ```bash
-(ssh) cd /opt/qcom/qirp-sdk/etc
+(ssh) cd /etc
 (ssh) vi car.conf
 # add 2 lines
 #     - car_type:0
@@ -80,7 +82,7 @@ ssh root@IP
 All terminals run in Ubuntu PC and All terminals need to execute the following commands:
 
 ```
-(ssh) export HOME=/opt 
+(ssh) export HOME=/home 
 (ssh) source /usr/bin/ros_setup.sh && source /etc/profile.d/qirp-setup.sh
 (ssh) export ROS_DOMAIN_ID=xxx
 (ssh) setenforce 0
@@ -108,15 +110,14 @@ All terminals run in Ubuntu PC and All terminals need to execute the following c
 **Run nav2_bringup node   //terminal4**
 
 ```
-(ssh) cd /opt/qcom/qirp-sdk/
-(ssh) source usr/share/nav2_bringup/local_setup.bash
+(ssh) source /usr/share/nav2_bringup/local_setup.bash
 (ssh) ros2 launch nav2_bringup navigation_launch.py 'use_sim_time:=false'
 ```
 
 **Run auto-explore  //terminal5**
 
 ```
-(ssh) cd /opt/qcom/qirp-sdk/usr/lib/auto-explore
+(ssh) cd /usr/lib/auto-explore
 (ssh) chmod 777 auto-explore
 (ssh) ./auto-explore
 ```
