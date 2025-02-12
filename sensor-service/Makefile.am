@@ -12,7 +12,9 @@ requiredlibs = -lcdsprpc                                                \
                @SENSORSUTILS_LIBS@                                      \
                @SENSORSAPI_LIBS@                                        \
                @SENSINGHUB_LIBS@                                        \
-               -ljsoncpp
+               -ljsoncpp                                                \
+               -labsl_log_internal_check_op                             \
+               -labsl_log_internal_message
 
 cpp_sources = src/sensor_service.cpp
 bin_PROGRAMS =  sensor_service
