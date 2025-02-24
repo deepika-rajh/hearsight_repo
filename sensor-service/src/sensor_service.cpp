@@ -583,17 +583,19 @@ void wait_for_connect() {
 
     char server_socket_name[MAX_PATH_LEN] = SOCKET_PATH;
     unlink(server_socket_name);
-    strlcpy(server_addr.sun_path, server_socket_name, MAX_STRING_LEN);
+    strlcpy(server_addr.sun_path, server_socket_name, sizeof(server_addr.sun_path));
 
     if (bind(service_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         std::cout << "bind failed" << std::endl;
         exit(1);
     }
+    std::cout << "bind socket success" << std::endl;
 
     if (listen(service_fd, MAX_SOCK_CLIENT) < 0) {
         std::cout << "Listen failed" << std::endl;
         exit(1);
     }
+    std::cout << "Listen socket success" << std::endl;
 
     struct sockaddr_un client_addr;
     socklen_t len = sizeof(client_addr);
@@ -657,6 +659,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    std::cout << "fastRPC_remote_handle_init success." << std::endl;
+
     for (int i = 0; i < (int)sensors_info_vec_.size(); i++) {
         get_support_sample_rate(sensors_info_vec_[i]);
     }
@@ -674,6 +678,7 @@ int main(int argc, char *argv[])
             return -1;
         }
     }
+    std::cout << "sample_rate conf success!" << std::endl;
 
     wait_for_connect();
     return 0;
