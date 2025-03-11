@@ -7,6 +7,8 @@
 #ifndef _MCB_FLASH_H_
 #define _MCB_FLASH_H_
 
+#include <stddef.h>
+
 #ifdef QRC_USER_DRIVER
 #define QRC_GPIOCHIP ("/dev/gpiochip0")
 #define QRC_RESETGPIO 168

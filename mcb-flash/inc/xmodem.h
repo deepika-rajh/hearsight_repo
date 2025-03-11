@@ -13,6 +13,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 /* XMODEM protocol constants */
 /* Bytes defined by the protocol. */
