@@ -10,18 +10,46 @@
 #include <stddef.h>
 
 #ifdef QRC_USER_DRIVER
+
+#ifdef QRC_RB3
+#define QRC_THREAD_NUM (2)
+#define QRC_IOC_MAGIC 'q'
+#define QRC_FIONREAD _IO(QRC_IOC_MAGIC, 5)
+#define QRC_RESET_MCB _IO(QRC_IOC_MAGIC, 2)
+#define QRC_DEV ("/dev/ttyHS2")
+#define QRC_BOOT_APP '2'
+#define QRC_GPIOCHIP ("/dev/gpiochip4")
+#define QRC_RESETGPIO 147
+#define QRC_MAX_READ_SIZE 1024
+#endif
+
+#ifdef QRC_RB8
+#define QRC_THREAD_NUM (2)
+#define QRC_IOC_MAGIC 'q'
+#define QRC_FIONREAD _IO(QRC_IOC_MAGIC, 5)
+#define QRC_RESET_MCB _IO(QRC_IOC_MAGIC, 2)
+#define QRC_DEV ("/dev/ttyHS2")
+#define QRC_BOOT_APP '2'
+#define QRC_GPIOCHIP ("/dev/gpiochip4")
+#define QRC_RESETGPIO 129
+#define QRC_MAX_READ_SIZE 1024
+#endif
+
+#ifdef QRC_RB5GEN2
 #define QRC_GPIOCHIP ("/dev/gpiochip0")
 #define QRC_RESETGPIO 168
 #define QRC_MAX_READ_SIZE 1024
 #define QRC_DEV "/dev/ttyHS1"
-#else
-/* IOCTL commands */
-#define QRC_IOC_MAGIC 'q'
-/* Clear read fifo */
-#define QRC_FIFO_CLEAR _IO(QRC_IOC_MAGIC, 1)
-/* Reboot QRC controller */
-#define QRC_REBOOT _IO(QRC_IOC_MAGIC, 2)
-#define QRC_DEV "/dev/qrc"
+#endif
+
+#endif
+
+#ifndef QRC_DEV
+#define QRC_GPIOCHIP ("/dev/gpiochip0")
+#define QRC_RESETGPIO 168
+#define QRC_MAX_READ_SIZE 1024
+#define QRC_DEV "/dev/ttyHS1"
+
 #endif
 
 void usage();
