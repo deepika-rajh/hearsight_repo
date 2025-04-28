@@ -1,0 +1,5 @@
+qcom-sensors-service (1.0.0-1) noble; urgency=low
+
+  * Initial release.
+
+ -- Zhanye Lin <zhanlin@qti.qualcomm.com>  Mon, 31 Mar 2025 11:24:06 +0000
