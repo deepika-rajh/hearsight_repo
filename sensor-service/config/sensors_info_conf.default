@@ -1,0 +1,9 @@
+# Now only support imu conf. imu sample_rate range:
+# RB3 GEN2: [12-500] HZ 12 25 50 100 200 500
+---
+sensor_list:
+- imu
+
+imu:
+  sample_rate: 200
+  use_iio: false

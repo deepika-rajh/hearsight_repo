@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2024 Qualcomm Technologies, Inc.
- * All Rights Reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * All rights reserved.
  * Confidential and Proprietary - Qualcomm Technologies, Inc.
- *
  *
  * Not a Contribution.
  *
@@ -21,6 +20,8 @@
  * limitations under the License.
  */
 #ifdef SNS_SUPPORT_DIRECT_CHANNEL
+#include <string>
+#include <cstdint>
 /* Taken from sensors_base.h, standard Android sensors */
 #define SENSOR_TYPE_ACCELEROMETER                       (1)
 #define SENSOR_TYPE_GEOMAGNETIC_FIELD                   (2)
@@ -166,6 +167,41 @@ typedef PACK(struct) sensors_event_t {
 
     uint32_t reserved1[3];
 } sensors_event_t;
+
+typedef struct sns_sensor_event {
+    uint64_t timestamp;
+    uint32_t message_id;
+    uint32_t event_len;
+} sns_sensor_event;
+
+struct sensors {
+    std::string sensor_type;
+    int calibrated;
+    int resampled;
+    int sample_rate;
+    int channel_type;
+    sensors() {}
+    sensors(std::string _sensor_type, int _calibrated, int _resampled, int _sample_rate, int _channel_type) {
+        sensor_type = _sensor_type;
+        calibrated = _calibrated;
+        resampled = _resampled;
+        sample_rate = _sample_rate;
+        channel_type = _channel_type;
+    }
+};
+
+struct suid_info{
+    uint64_t low;
+    uint64_t high;
+};
+
+typedef enum sns_request_type {
+    SNS_GENERIC_SUID = 0,
+    SNS_GENERIC_ATTRIBUTES,
+    SNS_GENERIC_SAMPLE,
+    SNS_ANDROID_MUX_SAMPLE
+}sns_request_type;
+
 #endif
 
 
