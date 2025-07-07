@@ -15,6 +15,7 @@ public:
   void stop_sensor() override;
   void set_config(const int sample_rate) override;
   bool get_fd(std::vector<int> & fds) override;
+  int get_adjust_sample_rate() override;
 
   std::string get_name() override;
 };

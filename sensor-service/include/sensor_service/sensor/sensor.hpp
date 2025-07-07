@@ -20,7 +20,7 @@ public:
 
   void set_sensor_comm(SensorComm * comm) { comm_ = comm; }
 
-  int get_adjust_sample_rate() { return adjust_sample_rate_; }
+  virtual int get_adjust_sample_rate() = 0;
 
   int get_request_sample_rate() { return request_sample_rate_; }
 

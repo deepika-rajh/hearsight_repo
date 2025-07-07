@@ -14,6 +14,13 @@ void IMUSensor::set_config(const int sample_rate)
     return;
   }
   request_sample_rate_ = sample_rate;
+}
+
+int IMUSensor::get_adjust_sample_rate()
+{
+  if (adjust_sample_rate_ != 0) {
+    return adjust_sample_rate_;
+  }
   std::vector<int> available_frequency;
   comm_->get_sensor_available_sampling_frequency(SensorType::ACCELERATOR, available_frequency);
   comm_->get_sensor_available_sampling_frequency(SensorType::GYRO, available_frequency);
@@ -30,6 +37,7 @@ void IMUSensor::set_config(const int sample_rate)
       break;
     }
   }
+  return adjust_sample_rate_;
 }
 
 void IMUSensor::start_sensor()
