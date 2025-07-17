@@ -1,3 +1,9 @@
+qcom-sensors-service (2.0.0) noble; urgency=height
+
+  * Change to use ISession Framework get sensor data.
+
+ -- Zhanye Lin <zhanlin@qti.qualcomm.com>  Thu, 17 Jul 2025 02:13:36 +0000
+
 qcom-sensors-service (1.0.0-1) noble; urgency=low
 
   * Initial release.
