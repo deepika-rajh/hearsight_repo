@@ -20,13 +20,18 @@ bool SensorManager::create_sensor(const std::vector<SensorConfig> & sensor_confi
     if (sensor_config[i].name == "imu") {
       sensor = new IMUSensor();
     } else {
-      std::cout << " unknown sensor type: " << sensor_config[i].name << std::endl;
+      std::cout << "unknown sensor type: " << sensor_config[i].name << std::endl;
       return false;
     }
     if (!sensor_config[i].use_iio) {
       sensor->set_sensor_comm(&comm_);
     }
     sensor->set_config(sensor_config[i].sample_rate);
+    int adjust_sample = sensor->get_adjust_sample_rate();
+    if (adjust_sample == 0) {
+      std::cout << "The configuration is out of the valid range." << std::endl;
+      return false;
+    }
     sensors_.push_back(sensor);
   }
   return true;
@@ -190,6 +195,11 @@ void SensorManager::run()
           original_sample_rate = sensor->get_request_sample_rate();
           adjusted_sample_rate = sensor->get_adjust_sample_rate();
 
+          if (adjusted_sample_rate == 0) {
+              std::cout << "sensor-service set sample rate failed!" << std::endl;
+              close_connect(client_fd);
+              break;
+          }
           int msg_rate[2] = { original_sample_rate, adjusted_sample_rate };
           int send_len = send(client_fd, &msg_rate, sizeof(msg_rate), 0);
           if (send_len < 0) {

@@ -6,4 +6,3 @@ sensor_list:
 
 imu:
   sample_rate: 200
-  use_iio: false
