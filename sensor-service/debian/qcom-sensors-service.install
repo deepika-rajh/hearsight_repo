@@ -1,2 +1,2 @@
-sensors_info_conf.default  etc
-sensors_info.conf  etc
+config/sensors_info_conf.default  etc
+config/sensors_info.conf  etc

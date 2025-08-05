@@ -3,9 +3,5 @@
 %:
 	dh $@
 
-override_dh_auto_configure:
-	dh_auto_configure -- \
-	--enable-sns-direct-channel
-
 override_dh_installsystemd:
 	dh_installsystemd --name=sensor-service
