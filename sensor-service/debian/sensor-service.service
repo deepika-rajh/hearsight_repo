@@ -4,11 +4,16 @@
 [Unit]
 Description=sensor service
 SourcePath=/sbin/start-stop-daemon
+After=adsprpcd.service cdsprpcd.service sscrpcd.service
 
 [Service]
 Type=forking
 Restart=always
 RestartSec=10
 StartLimitIntervalSec=0
+ExecStartPre=/bin/sleep 0.5
 ExecStart=start-stop-daemon -S -b -x /usr/bin/sensor_service
-ExecStop=start-stop-daemon -K -n /usr/bin/sensor_service
+ExecStop=start-stop-daemon -K -n sensor_service
+
+[Install]
+WantedBy=multi-user.target

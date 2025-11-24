@@ -6,7 +6,9 @@ Rules-Requires-Root: no
 Build-Depends:
  debhelper-compat (= 13),
  cmake,
+ pkg-config,
  libprotobuf-dev,
+ libyaml-cpp-dev,
  qcom-dspservices-headers-dev, qcom-sensing-hub-dev, qcom-sensors-utils-dev, libbsd-dev, qcom-sensors-utils, qcom-sensors-registry, qcom-sensors-lookup, qcom-sensors-core, qcom-sensors-services-dev, qcom-sensors-api-dev
 Standards-Version: 4.6.2
 Homepage: http://support.cdmatech.com
