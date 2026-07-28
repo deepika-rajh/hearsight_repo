@@ -1,0 +1,14 @@
+# ROS2 colcon build artifacts
+build/
+install/
+log/
+
+# OpenEmbedded/devtool build artifacts - these are symlinks (often dangling,
+# pointing at a BSP build tree on the machine that created them), not real
+# directories, so no trailing slash here.
+oe-logs
+oe-workdir
+
+# Python bytecode cache
+__pycache__/
+*.pyc
