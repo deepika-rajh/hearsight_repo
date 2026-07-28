@@ -70,10 +70,14 @@ void Euler2Quaternion( double roll, double pitch, double yaw, double quaternion[
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <vector>
 using std::placeholders::_1;
 
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_pose_pub;
 extern rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr robot_pose_pub;
+extern rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_pub;
 extern rclcpp::Node::SharedPtr g_node;
 
 void pub_camera_raw_pose(const rvVSLAMPose & pose)
@@ -126,6 +130,93 @@ void pub_robot_pose(const rvVSLAMPose & pose)
   odom_msg->twist.twist.angular.z = 0;
 
   robot_pose_pub->publish(std::move(odom_msg));
+}
+
+void EulerToSO3_1( const float32_t* euler, float32_t* rotation );
+
+// Sparse point cloud: back-projects VWSLAM's currently-tracked feature
+// observations (2D pixel + mapPointId only, no 3D given by the library) using
+// the matching depth pixel from the same frame, then rotates/translates into
+// the "odom" frame with the same-frame pose - so it lines up with raw_pose_pub
+// without needing a TF broadcaster.
+void pub_sparse_point_cloud(const RV_TrackedObservation * observations, int obsNum,
+                             const uint16_t * depthBuf, const rvCameraParams & cameraConfig,
+                             const rvVSLAMPose & pose)
+{
+  if (!point_cloud_pub || observations == nullptr || obsNum <= 0 || depthBuf == nullptr)
+  {
+    return;
+  }
+
+  const rvCameraIntrinsic & intr = cameraConfig.stereo.camera[0];
+  const int width  = (int)intr.pixelWidth;
+  const int height = (int)intr.pixelHeight;
+  const float fx = intr.focalLength[0];
+  const float fy = intr.focalLength[1];
+  const float cx = intr.principalPoint[0];
+  const float cy = intr.principalPoint[1];
+
+  float R[9];
+  EulerToSO3_1(pose.pose.euler, R);
+  const float32_t * t = pose.pose.translation;
+
+  std::vector<float> xyz;
+  xyz.reserve(obsNum * 3);
+
+  for (int i = 0; i < obsNum; i++)
+  {
+    if (observations[i].s != RV_TrackedObservation::MATCHING_OK)
+    {
+      continue;
+    }
+
+    int px = (int)(observations[i].x + 0.5f);
+    int py = (int)(observations[i].y + 0.5f);
+    if (px < 0 || px >= width || py < 0 || py >= height)
+    {
+      continue;
+    }
+
+    uint16_t depthMm = depthBuf[py * width + px];
+    if (depthMm == 0)
+    {
+      continue;
+    }
+
+    float z = depthMm / 1000.f;
+    float xCam = (px - cx) * z / fx;
+    float yCam = (py - cy) * z / fy;
+
+    xyz.push_back(R[0] * xCam + R[1] * yCam + R[2] * z + t[0]);
+    xyz.push_back(R[3] * xCam + R[4] * yCam + R[5] * z + t[1]);
+    xyz.push_back(R[6] * xCam + R[7] * yCam + R[8] * z + t[2]);
+  }
+
+  size_t numPoints = xyz.size() / 3;
+
+  auto cloud_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+  cloud_msg->header.frame_id = "odom";
+  cloud_msg->header.stamp = rclcpp::Time(pose.timestampNs, RCL_ROS_TIME);
+  cloud_msg->height = 1;
+  cloud_msg->is_bigendian = false;
+  cloud_msg->is_dense = true;
+
+  sensor_msgs::PointCloud2Modifier modifier(*cloud_msg);
+  modifier.setPointCloud2FieldsByString(1, "xyz");
+  modifier.resize(numPoints);
+
+  sensor_msgs::PointCloud2Iterator<float> iter_x(*cloud_msg, "x");
+  sensor_msgs::PointCloud2Iterator<float> iter_y(*cloud_msg, "y");
+  sensor_msgs::PointCloud2Iterator<float> iter_z(*cloud_msg, "z");
+
+  for (size_t i = 0; i < numPoints; i++, ++iter_x, ++iter_y, ++iter_z)
+  {
+    *iter_x = xyz[i * 3 + 0];
+    *iter_y = xyz[i * 3 + 1];
+    *iter_z = xyz[i * 3 + 2];
+  }
+
+  point_cloud_pub->publish(std::move(cloud_msg));
 }
 
 void VSLAMSystem::state_callbackROS(const std_msgs::msg::String::SharedPtr msg) const
@@ -399,8 +490,11 @@ void VSLAMSystem::addImageToVslam( const int64_t timestamp, const uint8_t * imag
    if(rawPose.poseQuality >= RV_VSLAM_TRACKING_STATE_GREAT )
    {
        pub_camera_raw_pose(rawPose);
+       pub_sparse_point_cloud(status._ObservationBuf, obsNum, depthBuf, cameraConfiguration, rawPose);
    }
    printf("Key Frame number %d, Tracking Quality %d\n", status._KeyframeNum, rawPose.poseQuality);
+   printf("Observations: total=%d matched=%d mismatched=%d, brightness=%.1f\n",
+          obsNum, status._MatchedMapPointNum, status._MisMatchedMapPointNum, status._Brightness);
 #endif
    viz->ShowPoints( rawPose.poseQuality, "points", status );
    if( status._ObservationBuf )

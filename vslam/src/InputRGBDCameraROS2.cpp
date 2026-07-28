@@ -7,6 +7,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include "InputRGBDCameraROS2.h"
 #include <cv_bridge/cv_bridge.h>
+#include <inttypes.h>
 
 //bool readStereoCameraParameter(const char* cameraID, rvStereoCamera& configuration, rvStereoRectCamera & outputCamera);
 
@@ -20,16 +21,30 @@ InputRGBDCameraROS2::InputRGBDCameraROS2(rclcpp::Node::SharedPtr const &node_, c
     cameraParams.cameraType = rvGrayDepth;
     if (ReadCameraConfig(config, cameraParams))
     {
-        printf("load camera parameter successfully\n");
+        printf("[depth-vslam] loaded camera calibration from '%s' (%dx%d)\n",
+               config.c_str(),
+               cameraParams.stereo.camera[0].pixelWidth,
+               cameraParams.stereo.camera[0].pixelHeight);
         gotCameraPara = true;
         rgbInfoSub = NULL;
+        printf("Creating RGB subscriber...\n");
         rgb_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, "/camera/color/image_raw");
+        printf("RGB subscriber created.\n");
+        
+        printf("Creating Depth subscriber...\n");
         depth_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, "/camera/aligned_depth_to_color/image_raw");
+        printf("Depth subscriber created.\n");
+        
+        printf("Creating synchronizer...\n");
         syncApproximate = std::make_shared<RGBDSync>(RGBDSync(10), *rgb_sub, *depth_sub);
+        printf("Registering callback...\n");
         syncApproximate->registerCallback(bind(&InputRGBDCameraROS2::callback, this, std::placeholders::_1, std::placeholders::_2));
+        printf("RGBD callback registered.\n");
     }
     else
     {
+        printf("[depth-vslam] calibration '%s' not loaded; auto-detecting resolution + intrinsics from /camera/color/camera_info\n",
+               config.c_str());
         rgbInfoSub = node_->create_subscription<sensor_msgs::msg::CameraInfo>(
                      std::string("/camera/color/camera_info"), 10, bind(&InputRGBDCameraROS2::rgbInfo_callback, this, std::placeholders::_1));
         gotCameraPara = false;
@@ -47,6 +62,15 @@ InputRGBDCameraROS2::~InputRGBDCameraROS2()
 void InputRGBDCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedPtr& image,
 	const sensor_msgs::msg::Image::ConstSharedPtr& depth)
 {
+    printf("===== RGBD CALLBACK ENTERED =====\n");
+    printf("RGB stamp : %u.%09u\n",
+       image->header.stamp.sec,
+       image->header.stamp.nanosec);
+
+    printf("Depth stamp : %u.%09u\n",
+       depth->header.stamp.sec,
+       depth->header.stamp.nanosec);
+
     if ( image != nullptr )
     {
         //rclcpp::Time t = left_image->header.stamp;
@@ -82,10 +106,36 @@ void InputRGBDCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedPtr
         return;
     }
 
-    printf("call callback\n");
+    printf("Calling VSLAM callback...\n");
     rclcpp::Time t = image->header.stamp;
     cvtColor(cv_ptrRGB->image, grayImage, cv::COLOR_RGB2GRAY);
+    // -------- DEBUG START --------
+    printf("Timestamp(ns): %" PRId64 "\n", t.nanoseconds());
+
+    printf("Gray: %dx%d type=%d\n",
+        grayImage.cols,
+        grayImage.rows,
+        grayImage.type());
+
+    printf("Depth: %dx%d type=%d\n",
+        cv_ptrD->image.cols,
+        cv_ptrD->image.rows,
+        cv_ptrD->image.type());
+
+    uint16_t *depthPtr = (uint16_t*)cv_ptrD->image.data;
+
+    printf("Depth(center) = %u\n",
+        depthPtr[(240 * grayImage.cols) + (grayImage.cols / 2)]);
+
+    double minDepth, maxDepth;
+    cv::minMaxLoc(cv_ptrD->image, &minDepth, &maxDepth);
+
+    printf("Depth range = %.0f - %.0f\n",
+        minDepth,
+        maxDepth);
+    // -------- DEBUG END --------
     callback_(t.nanoseconds(), grayImage.data, (const uint16_t *)cv_ptrD->image.data);
+    printf("Returned from VSLAM callback.\n");
 }
 
 void InputRGBDCameraROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::SharedPtr rgbInfo)
@@ -93,7 +143,8 @@ void InputRGBDCameraROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::S
    if (gotCameraPara)
        return;
 
-   printf("process camera info\n");
+   printf("[depth-vslam] auto-detected %ux%u from /camera/color/camera_info\n",
+          rgbInfo->width, rgbInfo->height);
 
    cameraParams.imageFormat = Y_ONLY_FORMAT;
    cameraParams.cameraType = rvGrayDepth;
@@ -122,12 +173,17 @@ void InputRGBDCameraROS2::rgbInfo_callback(const sensor_msgs::msg::CameraInfo::S
 
    gotCameraPara = true;
 
-
+   printf("Creating RGB subscriber...\n");
    rgb_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, "/camera/color/image_raw");
+   printf("RGB subscriber created.\n"); 
    depth_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, "/camera/aligned_depth_to_color/image_raw");
+   printf("Creating Depth subscriber...\n");
 
+   printf("Creating synchronizer...\n");
    syncApproximate = std::make_shared<RGBDSync>(RGBDSync(10), *rgb_sub, *depth_sub);
+   printf("Registering callback...\n");
    syncApproximate->registerCallback(bind(&InputRGBDCameraROS2::callback, this, std::placeholders::_1, std::placeholders::_2));
+   printf("RGBD callback registered.\n");
 
    rgbInfoSub = NULL;
 

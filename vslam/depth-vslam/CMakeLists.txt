@@ -20,9 +20,24 @@ if(NOT BUILD_TESTING)
 
   add_definitions(-DARM_BASED)
   add_definitions(-DROS_BASED)
-  add_definitions(-DWHEEL_SUPPORTED)
+  # WHEEL_SUPPORTED enables wheel odometry: the /odom subscription in
+  # DepthvSLAM.cpp and the VSLAMWheel processing thread in VSLAMSystem. This rig
+  # has no wheels/odom, so it is disabled to avoid subscribing to /odom.
+  # To re-enable: uncomment the line below, set wheelEnabled 1 +
+  #   alwaysDoMappingOnRobotOdom 1 + VSLAMIniMode DEPTHW_INIT in rgbdWSlam.cfg,
+  #   and restore the WEF.Tvb/WEF.Rvb extrinsics in vslam.cfg.
+  # add_definitions(-DWHEEL_SUPPORTED)
   add_definitions(-DOPENCV_ENABLED)
-  add_definitions(-DIMU_SUPPORTED)
+  # IMU_SUPPORTED enables the on-board IMU path (VSLAMIMU -> QTI SensorClient ->
+  # icm42688). That thread is started unconditionally by VSLAMSystem, so leaving
+  # this on makes depth-vslam always open the board's sensor service regardless of
+  # config. This rig has no on-board IMU (only the RealSense D455's), so it stays
+  # OFF. When IMU_SUPPORTED is off, VSLAMSystem exposes a static addIMU() that
+  # InputIMUROS2 (see src/DepthvSLAM.cpp) feeds from the D455's /camera/imu topic
+  # instead. To re-enable the board IMU later: uncomment the line below, set
+  # IMUEnabled 1 in Configuration/rgbdWSlam.cfg, and drop the RealSense wiring in
+  # DepthvSLAM.cpp.
+  # add_definitions(-DIMU_SUPPORTED)
 
   # find dependencies
   find_package(ament_cmake_auto REQUIRED)
@@ -45,6 +60,7 @@ if(NOT BUILD_TESTING)
     ../src/VSLAMSystem.cpp
     ../src/SystemTime.cpp
     ../src/InputRGBDCameraROS2.cpp
+    ../src/InputIMUROS2.cpp
     ../src/VSLAMIMU.cpp
     ../src/VSLAMWheel.cpp
     ../src/VSLAMHijack.cpp

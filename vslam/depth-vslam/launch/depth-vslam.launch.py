@@ -15,17 +15,24 @@ import launch_ros.actions
 import launch_ros.descriptions
 
 # where Configuration folder lay in
-config_path = 'Configuration_file_folder/'
+# Root directory (on target) that holds Configuration/vslam.cfg, calibration
+# yaml files, the target image, etc. Override with sensor_setting:=<dir>.
+config_path = '/usr/share/mono-vslam/'
 
 configurable_parameters = [
-    {'name': 'alg_setting', 'default': config_path +
-     'Configuration/rgbdWSlam.cfg', 'description': "''"},
     {'name': 'sensor_setting',
-     'default': config_path, 'description': "''"},
-    {'name': 'vslam_config_file',
-     'default': 'Configuration/vslam.cfg', 'description': "''"},
-    {'name': 'output_file', 'default': 'log',
-     'description': "''"}
+     'default': config_path,
+     'description': 'directory containing Configuration/vslam.cfg and calibration files'},
+    {'name': 'alg_setting',
+     'default': config_path + 'Configuration/rgbdWSlam.cfg',
+     'description': 'SLAM algorithm .cfg'},
+    {'name': 'output_file',
+     'default': config_path + 'vwslam/',
+     'description': 'map / log output directory'},
+    {'name': 'camera_yaml',
+     'default': '',
+     'description': 'camera calibration yaml (absolute, or relative to sensor_setting). '
+                    'Empty => use vslam.cfg Camera line, then auto-detect from camera_info'}
 ]
 remap_parameters = [{'name': 'input_rgb_raw_topic', 'default': '/camera/color/image_raw', 'description': "''"},
                     {'name': 'input_camera_info_topic',
@@ -39,6 +46,13 @@ remap_parameters = [{'name': 'input_rgb_raw_topic', 'default': '/camera/color/im
                     {'name': 'robot_pose_pub_topic', 'default': 'robot_odom',
                      'description': "''"},
                     {'name': 'imu_pub_topic', 'default': 'sensor_imu',
+                     'description': "''"},
+                    # Node subscribes to the relative topic "imu" (see InputIMUROS2 in
+                    # DepthvSLAM.cpp); 'from' must match that literal for the remap to
+                    # take effect. Defaults to the RealSense D455's combined IMU topic.
+                    # The D455 launch must set unite_imu_method:=2 (linear_interpolation)
+                    # or 1 (copy) so accel and gyro samples arrive combined on one topic.
+                    {'name': 'input_imu_topic', 'from': 'imu', 'default': '/camera/imu',
                      'description': "''"}
                     ]
 
@@ -52,7 +66,7 @@ def set_configurable_parameters(parameters):
 
 
 def set_remap_parameters(parameters):
-    return [(param['default'], LaunchConfiguration(param['name'])) for param in parameters]
+    return [(param.get('from', param['default']), LaunchConfiguration(param['name'])) for param in parameters]
 
 
 def generate_launch_description():
@@ -65,4 +79,4 @@ def generate_launch_description():
 
     return LaunchDescription(declare_configurable_parameters(configurable_parameters) +
                              declare_configurable_parameters(remap_parameters)+[
-        mono_vslam_node])
+        depth_vslam_node])
