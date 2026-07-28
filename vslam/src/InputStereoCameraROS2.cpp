@@ -22,6 +22,10 @@ InputStereoCameraROS2::InputStereoCameraROS2(rclcpp::Node::SharedPtr const &node
 
 	if (ReadCameraConfig(config, cameraParams))
 	{
+		printf("[stereo-vslam] loaded camera calibration from '%s' (%dx%d)\n",
+		       config.c_str(),
+		       cameraParams.stereo.camera[0].pixelWidth,
+		       cameraParams.stereo.camera[0].pixelHeight);
 		gotLeftCameraPara = true;
 		gotRightCameraPara = true;
 		leftInfoSub = NULL;
@@ -30,9 +34,17 @@ InputStereoCameraROS2::InputStereoCameraROS2(rclcpp::Node::SharedPtr const &node
 		left_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, kLeftImageTopic);
         right_sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image> >(node, kRightImageTopic);
 		makeSncPolocy();
+
+		// Compute depth ourselves from the stereo pair (via rvDFS) and feed the
+		// engine as rvGrayDepth instead of genuine rvStereo - see the comment on
+		// dfsHandle in InputStereoCameraROS2.h for why.
+		cameraParams.cameraType = rvGrayDepth;
+		initDFS();
 	}
 	else
 	{
+        printf("[stereo-vslam] calibration '%s' not loaded; auto-detecting resolution + intrinsics from /left/camera_info and /right/camera_info\n",
+               config.c_str());
         leftInfoSub = node_->create_subscription<sensor_msgs::msg::CameraInfo>(
         std::string("/left/camera_info"), 10, bind(&InputStereoCameraROS2::leftInfo_callback, this, std::placeholders::_1));
         rightInfoSub = node_->create_subscription<sensor_msgs::msg::CameraInfo>(
@@ -49,23 +61,33 @@ InputStereoCameraROS2::InputStereoCameraROS2(rclcpp::Node::SharedPtr const &node
 
 InputStereoCameraROS2::~InputStereoCameraROS2()
 {
-
+    if (dfsHandle)
+    {
+        rvDFS_DeinitializeU16(dfsHandle);
+        dfsHandle = nullptr;
+    }
 }
 
 void InputStereoCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedPtr& left,
 	const sensor_msgs::msg::Image::ConstSharedPtr& right)
 {
-    printf("---------camera output a pair of image-----------------\n");
+    printf("===== STEREO CALLBACK ENTERED =====\n");
     if ( left != nullptr )
     {
+		printf("Left  stamp : %u.%09u\n", left->header.stamp.sec, left->header.stamp.nanosec);
+		printf("Right stamp : %u.%09u\n", right->header.stamp.sec, right->header.stamp.nanosec);
 		printf("image time %10.6f\n",left->header.stamp.sec + left->header.stamp.nanosec*1e-9);
     }
-    else 
+    else
     {
         std::cout << "recieve empty" << std::endl;
 		return;
     }
-        
+
+    printf("Wire size - left: %ux%u encoding=%s step=%u  |  right: %ux%u encoding=%s step=%u\n",
+        left->width, left->height, left->encoding.c_str(), left->step,
+        right->width, right->height, right->encoding.c_str(), right->step);
+
     cv_bridge::CvImageConstPtr cv_ptrLeft;
     cv_bridge::CvImageConstPtr cv_ptrRight;
     try
@@ -74,29 +96,136 @@ void InputStereoCameraROS2::callback(const sensor_msgs::msg::Image::ConstSharedP
     }
     catch (cv_bridge::Exception& e)
     {
-       printf("left error\n");
+       printf("left error: %s\n", e.what());
        return;
     }
-	
+
 	try
     {
         cv_ptrRight = cv_bridge::toCvCopy(right, sensor_msgs::image_encodings::MONO8);
     }
     catch (cv_bridge::Exception& e)
     {
-       printf("right error\n");
+       printf("right error: %s\n", e.what());
        return;
     }
 
+    // -------- DEBUG START --------
+    printf("Left  cv::Mat: %dx%d type=%d  |  Right cv::Mat: %dx%d type=%d\n",
+        cv_ptrLeft->image.cols, cv_ptrLeft->image.rows, cv_ptrLeft->image.type(),
+        cv_ptrRight->image.cols, cv_ptrRight->image.rows, cv_ptrRight->image.type());
+    printf("Calibration expects: left %ux%u  right %ux%u (mismatch here silently corrupts the "
+        "DFS depth computation below)\n",
+        cameraParams.stereo.camera[0].pixelWidth, cameraParams.stereo.camera[0].pixelHeight,
+        cameraParams.stereo.camera[1].pixelWidth, cameraParams.stereo.camera[1].pixelHeight);
+
+    double leftMin, leftMax, rightMin, rightMax;
+    cv::minMaxLoc(cv_ptrLeft->image, &leftMin, &leftMax);
+    cv::minMaxLoc(cv_ptrRight->image, &rightMin, &rightMax);
+    cv::Scalar leftMean = cv::mean(cv_ptrLeft->image);
+    cv::Scalar rightMean = cv::mean(cv_ptrRight->image);
+    printf("Left  pixel range = %.0f - %.0f, mean = %.2f\n", leftMin, leftMax, leftMean[0]);
+    printf("Right pixel range = %.0f - %.0f, mean = %.2f\n", rightMin, rightMax, rightMean[0]);
+    // -------- DEBUG END --------
+
+    if (!dfsHandle)
+    {
+        printf("DFS not initialized - skipping frame (no depth available)\n");
+        return;
+    }
+
+    rvDFSInputParam in{};
+    in.meta.version = 0x00010000;
+    in.meta.paramSize = sizeof(rvDFSInMeta);
+    in.meta.numParams = 0;
+    in.meta.dfsParam = nullptr;
+    in.meta.poseCameraInWorld = nullptr;
+    in.inColor = nullptr;
+    in.inV1.imgTimestamp = (uint64_t)left->header.stamp.sec * 1000000000ULL + left->header.stamp.nanosec;
+    in.inV1.imgLeft = cv_ptrLeft->image.data;
+    in.inV1.ionFDLeft = -1;
+    in.inV1.imgRight = cv_ptrRight->image.data;
+    in.inV1.ionFDRight = -1;
+
+    rvDFSOutputParam out{};
+    out.outV1.imgL = nullptr;
+    out.outV1.imgR = nullptr;
+    out.outV1.rectL = nullptr;
+    out.outV1.rectR = nullptr;
+    out.outV1.mapOfDisparity = nullptr;
+    out.outV1.mapOfDepth = depthBuf.data();
+    out.outV1.numPoints = 0;
+    out.outV1.pointBuffer = nullptr;
+
+    // -------- DFS DEBUG START --------
+    if (!rvDFS_ComputeU16(dfsHandle, &in, &out))
+    {
+        printf("rvDFS_ComputeU16 FAILED - skipping frame\n");
+        return;
+    }
+    uint16_t depthMin = 65535, depthMax = 0;
+    double depthSum = 0;
+    size_t validCount = 0;
+    for (uint16_t d : depthBuf)
+    {
+        if (d == 0) continue;
+        if (d < depthMin) depthMin = d;
+        if (d > depthMax) depthMax = d;
+        depthSum += d;
+        validCount++;
+    }
+    printf("DFS depth: valid=%zu/%zu range=%u-%u mean=%.0fmm\n",
+        validCount, depthBuf.size(), validCount ? depthMin : 0, depthMax,
+        validCount ? depthSum / validCount : 0.0);
+    // -------- DFS DEBUG END --------
+
     printf("call callback\n");
     rclcpp::Time t = left->header.stamp;
-    cv::Mat leftHalf = grayImage.rowRange(0, cameraParams.stereo.camera[0].pixelHeight);
-	cv_ptrLeft->image.copyTo(leftHalf);
-	cv::Mat rightHalf = grayImage.rowRange(cameraParams.stereo.camera[0].pixelHeight,
-        cameraParams.stereo.camera[0].pixelHeight + cameraParams.stereo.camera[1].pixelHeight);
-	cv_ptrRight->image.copyTo(rightHalf);
 
-    callback_(t.nanoseconds(), grayImage.data, (const uint16_t *)NULL);
+    printf("Calling VSLAM callback...\n");
+    callback_(t.nanoseconds(), cv_ptrLeft->image.data, depthBuf.data());
+    printf("Returned from VSLAM callback.\n");
+}
+
+bool InputStereoCameraROS2::initDFS()
+{
+    rvDFSParameter dfsParam{};
+    dfsParam.version = 0x00010000;
+    dfsParam.paramSize = sizeof(rvDFSParameter);
+    dfsParam.inputSize = { (int)cameraParams.stereo.camera[0].pixelWidth,
+                           (int)cameraParams.stereo.camera[0].pixelHeight,
+                           (int)cameraParams.stereo.camera[0].pixelStride };
+    dfsParam.imgFormat = Y_ONLY_FORMAT;
+    dfsParam.inType = RV_DFS_IN_V1;
+    dfsParam.outputSize = dfsParam.inputSize;
+    dfsParam.mode = RV_DFS_BALANCE; // OpenCL - prefer Qualcomm HW accel over a CPU-only stereo matcher
+    dfsParam.useDisp = false;       // use depthRange (mm) rather than raw disparity levels
+    dfsParam.depthRange.minDepth = 300;  // mm
+    dfsParam.depthRange.maxDepth = 5000; // mm - keep in sync with stereoSlam.cfg's depthFilter
+    dfsParam.doRectification = false; // D455 infra streams are already factory-rectified
+    dfsParam.ppLevel = RV_DFS_PP_BASIC;
+
+    dfsHandle = rvDFS_InitializeU16(dfsParam, cameraParams.stereo);
+    if (!dfsHandle)
+    {
+        printf("[stereo-vslam] rvDFS_InitializeU16 failed with RV_DFS_BALANCE (OpenCL) - retrying RV_DFS_COVERAGE (CPU)\n");
+        dfsParam.mode = RV_DFS_COVERAGE;
+        dfsHandle = rvDFS_InitializeU16(dfsParam, cameraParams.stereo);
+    }
+
+    if (dfsHandle)
+    {
+        depthBuf.assign((size_t)cameraParams.stereo.camera[0].pixelWidth *
+                         cameraParams.stereo.camera[0].pixelHeight, 0);
+        printf("[stereo-vslam] DFS initialized (mode=%s)\n",
+               dfsParam.mode == RV_DFS_COVERAGE ? "COVERAGE/CPU" : "BALANCE/OpenCL");
+    }
+    else
+    {
+        printf("[stereo-vslam] DFS initialization FAILED entirely - no depth will be computed, "
+               "every frame will be skipped!\n");
+    }
+    return dfsHandle != nullptr;
 }
 
 void InputStereoCameraROS2::leftInfo_callback(const sensor_msgs::msg::CameraInfo::SharedPtr rgbInfo)                        
@@ -152,9 +281,7 @@ InputStereoCameraROS2::makeSncPolocy()
     printf("************sync polocy******************\n");
     syncApproximate = std::make_shared<StereoSync>(StereoSync(10), *left_sub, *right_sub);
     syncApproximate->registerCallback(bind(&InputStereoCameraROS2::callback, this, std::placeholders::_1, std::placeholders::_2));
-    printf("*********left_sub %d, right_sub %d*********\n", (void *)left_sub.get(), (void *)right_sub.get());
-	grayImage = cv::Mat(cameraParams.stereo.camera[0].pixelHeight + cameraParams.stereo.camera[1].pixelHeight,
-	cameraParams.stereo.camera[0].pixelWidth, CV_8UC1);
+    printf("*********left_sub %p, right_sub %p*********\n", (void *)left_sub.get(), (void *)right_sub.get());
 }
 
 

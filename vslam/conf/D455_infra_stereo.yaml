@@ -1,0 +1,51 @@
+%YAML:1.0
+# D455 infrared stereo pair (Infrared 1 = left, Infrared 2 = right) calibration.
+# Intrinsics + baseline are real factory data from this unit's
+# `rs-enumerate-devices -c` (see d455_calibration_dump.txt): both IR sensors
+# report identical intrinsics (already rectified by the D455's own pipeline),
+# and the "Extrinsic from Infrared 1 to Infrared 2" block gives the baseline.
+# Distortion is genuinely all-zero on this device (IR streams are pre-rectified).
+Image_Size: [848, 480]
+distortion_model: radial_tangential
+
+Camera_Matrix1: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 4.3162963867187500e+02, 0., 4.3377600097656200e+02,
+           0., 4.3162963867187500e+02, 2.4262612915039100e+02,
+           0., 0., 1. ]
+Distortion_Coefficients1: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0., 0., 0., 0., 0. ]
+
+Camera_Matrix2: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 4.3162963867187500e+02, 0., 4.3377600097656200e+02,
+           0., 4.3162963867187500e+02, 2.4262612915039100e+02,
+           0., 0., 1. ]
+Distortion_Coefficients2: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0., 0., 0., 0., 0. ]
+
+# Rotation from left (Infrared 1) to right (Infrared 2) - identity, factory-rectified pair.
+R: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1., 0., 0.,
+           0., 1., 0.,
+           0., 0., 1. ]
+# Translation left-to-right in millimeters (InputStereoCameraROS2::ReadCameraConfig
+# divides by 1000 internally) - baseline ~95mm, matches D455 spec.
+T: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [ -95.0027629733086, 0., 0. ]

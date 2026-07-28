@@ -14,27 +14,47 @@ from launch.substitutions import LaunchConfiguration
 import launch_ros.actions
 import launch_ros.descriptions
 
-# where Configuration folder lay in
-config_path = 'Configuration_file_folder/'
+# Root directory (on target) that holds Configuration/robot.cfg, calibration
+# yaml files, etc. Override with sensor_setting:=<dir>.
+config_path = '/opt/qcom/qirf-sdk/data/misc/vwslam/'
 
 configurable_parameters = [
-    {'name': 'alg_setting', 'default': config_path +
-     'Configuration/rgbdWSlam.cfg', 'description': "''"},
     {'name': 'sensor_setting',
-     'default': config_path, 'description': "''"},
-    {'name': 'camera_setting',
-     'default': 'OAKStereoCamera.yaml', 'description': "''"},
+     'default': config_path,
+     'description': 'directory containing Configuration/robot.cfg and calibration files'},
+    {'name': 'alg_setting',
+     'default': config_path + 'Configuration/stereoSlam.cfg',
+     'description': 'SLAM algorithm .cfg'},
+    {'name': 'output_file',
+     'default': '/opt/qcom/qirf-sdk/data/vwslam/',
+     'description': 'map / log output directory'},
     {'name': 'vslam_config_file',
-     'default': 'Configuration/robot.cfg', 'description': "''"},
-    {'name': 'output_file', 'default': 'log',
-     'description': "''"}
+     'default': 'Configuration/robot.cfg',
+     'description': 'robot/sensor cfg (relative to sensor_setting)'},
+    {'name': 'camera_yaml',
+     'default': '',
+     'description': 'camera calibration yaml (absolute, or relative to sensor_setting). '
+                    'Empty => use vslam_config_file Stereo/Camera line, then auto-detect '
+                    'from /left/camera_info and /right/camera_info'}
 ]
-remap_parameters = [{'name': 'left_image_topic', 'default': '/left/image_raw', 'description': "''"},
-                    {'name': 'left_camera_info_topic',
-                     'default': '/left/camera_info', 'description': "''"},
-                    {'name': 'right_image_topic', 'default': '/right/image_raw', 'description': "''"},
-                    {'name': 'right_camera_info_topic',
-                     'default': '/right/camera_info', 'description': "''"},
+remap_parameters = [# Defaults point at the D455 infrared stereo pair (Infrared 1 = left,
+                    # Infrared 2 = right) under a /camera/camera/... namespace, matching
+                    # how this rig's test bags/live camera are set up (see
+                    # kLeftImageTopic/kRightImageTopic in InputStereoCameraROS2.cpp for
+                    # the literal topic names being remapped from).
+                    {'name': 'left_image_topic', 'from': '/left/image_raw',
+                     'default': '/camera/camera/infra1/image_rect_raw', 'description': "''"},
+                    {'name': 'left_camera_info_topic', 'from': '/left/camera_info',
+                     'default': '/camera/camera/infra1/camera_info', 'description': "''"},
+                    {'name': 'right_image_topic', 'from': '/right/image_raw',
+                     'default': '/camera/camera/infra2/image_rect_raw', 'description': "''"},
+                    {'name': 'right_camera_info_topic', 'from': '/right/camera_info',
+                     'default': '/camera/camera/infra2/camera_info', 'description': "''"},
+                    # Node subscribes to the relative topic "imu" (see InputIMUROS2 in
+                    # StereovSLAM.cpp); 'from' must match that literal for the remap to
+                    # take effect.
+                    {'name': 'input_imu_topic', 'from': 'imu',
+                     'default': '/camera/camera/imu', 'description': "''"},
                     {'name': 'raw_pose_pub_topic', 'default': 'vslam_odom_raw',
                      'description': "''"},
                     {'name': 'robot_pose_pub_topic', 'default': 'robot_odom',
@@ -56,11 +76,11 @@ def set_configurable_parameters(parameters):
 
 
 def set_remap_parameters(parameters):
-    return [(param['default'], LaunchConfiguration(param['name'])) for param in parameters]
+    return [(param.get('from', param['default']), LaunchConfiguration(param['name'])) for param in parameters]
 
 def generate_launch_description():
     stereo_vslam_node = launch_ros.actions.Node(
-            package='rvvslam', executable='rvSVSLAM',
+            package='stereo-vslam', executable='stereo-vslam',
             output='screen',
             parameters=[set_configurable_parameters(configurable_parameters)],
             remappings=set_remap_parameters(remap_parameters))

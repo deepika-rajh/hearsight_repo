@@ -1,0 +1,33 @@
+%YAML:1.0
+---
+# Camera_in_IMU is real factory data from this unit's `rs-enumerate-devices -c`
+# (the "Infrared 1" -> "Gyro" extrinsic block: RealSense's "Extrinsic from
+# Infrared 1 to Gyro" is p_gyro = R*p_infra1 + T, i.e. exactly the
+# camera-pose-in-IMU-frame this field expects). Infrared 1 is stereo-vslam's
+# left/reference camera (see InputStereoCameraROS2's kLeftImageTopic), so unlike
+# D455_IMU.yaml (which is relative to the Color camera, for depth-vslam), this
+# one is relative to Infrared 1. Accel and Gyro share the same physical die on
+# the D455 (Gyro<->Accel extrinsic is identity/zero in the dump), so this one
+# transform is used for both.
+#
+# Accelerator_bias / Gyro_bias are PLACEHOLDER zeros - same caveat as
+# D455_IMU.yaml: this unit's "Motion Intrinsic" block reports Bias Variances = 0
+# for both Accel and Gyro, meaning the device doesn't expose a factory bias
+# value (not that the true bias is zero). Do a short stationary capture for
+# better accuracy if needed.
+imu_name: D455_stereo_IMU
+Accelerator_bias:
+   rows: 1
+   cols: 3
+   data: [ 0., 0., 0. ]
+Gyro_bias:
+   rows: 1
+   cols: 3
+   data: [ 0., 0., 0. ]
+Camera_in_IMU:
+   rows: 3
+   cols: 4
+   data: [ 1., 0., 0., -0.0302200000733137,
+       0., 1., 0., 0.00740000000223517,
+       0., 0., 1., 0.0160199999809265 ]
+delta: 0.

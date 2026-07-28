@@ -20,7 +20,10 @@ if(NOT BUILD_TESTS_ONLY)
 
   add_definitions(-DARM_BASED)
   add_definitions(-DROS_BASED)
-  add_definitions(-DWHEEL_SUPPORTED)
+  # WHEEL_SUPPORTED/IMU_SUPPORTED: no wheel odom or on-board IMU on this rig (D455
+  # only). Off, same as depth-vslam - see that CMakeLists.txt for the full
+  # rationale. IMU is fed via InputIMUROS2 (see StereovSLAM.cpp) instead.
+  # add_definitions(-DWHEEL_SUPPORTED)
   add_definitions(-DOPENCV_ENABLED)
 
   # find dependencies
@@ -51,6 +54,7 @@ if(NOT BUILD_TESTS_ONLY)
     ../src/VSLAMSystem.cpp
     ../src/SystemTime.cpp
     ../src/InputStereoCameraROS2.cpp
+    ../src/InputIMUROS2.cpp
     ../src/VSLAMWheel.cpp
     ../src/VSLAMHijack.cpp
     ../src/Visualization.cpp

@@ -23,6 +23,7 @@ Confidential and Proprietary - Qualcomm Technologies, Inc.
 
 #include "CameraInterface.h"
 #include "rvCamera.h"
+#include "rvDFS.h"
 
 #include <opencv2/opencv.hpp>
 
@@ -94,7 +95,15 @@ private:
     void copyInfo(const sensor_msgs::msg::CameraInfo::SharedPtr rgbInfo, rvCameraIntrinsic &camera);
     void makeSncPolocy();
     rclcpp::Node::SharedPtr node;
-    cv::Mat grayImage;
+
+    // Depth-From-Stereo: computes depth from the infra1/infra2 pair using
+    // Qualcomm's own rvDFS API, so this feeds the VSLAM engine as rvGrayDepth
+    // (the proven-working depth-vslam code path) instead of genuine rvStereo
+    // (found to never leave Tracking Quality -1/INITIALIZING regardless of
+    // any cfg tuning - see stereoSlam.cfg's VSLAMIniMode comment).
+    bool initDFS();
+    rvDFS * dfsHandle = nullptr;
+    std::vector<uint16_t> depthBuf;
 
 	bool ReadCameraConfig( const std::string & filename, rvCameraParams & cameraParams );
 	void getCameraSetting( const std::string & distortionModel, const cv::Mat & intrinsics, const cv::Mat & distortion, const cv::Size & imageSize, rvCameraIntrinsic & cameraConfig);
