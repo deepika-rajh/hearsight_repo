@@ -1,0 +1,30 @@
+# ROS2 / colcon build artifacts
+build/
+install/
+log/
+install.zip
+
+# Semantic detection model artifacts
+semantic_detection/models/*.pt
+semantic_detection/models/*.onnx
+semantic_detection/models/*.bin
+semantic_detection/models/*.so
+semantic_detection/models/*.log
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Misc logs
+*.log
+
+# Archives
+*.zip

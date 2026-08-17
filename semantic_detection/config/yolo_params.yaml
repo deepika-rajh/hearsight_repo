@@ -1,0 +1,56 @@
+yolo_node:
+  ros__parameters:
+    # Subscribed directly from the RealSense driver's RGB color stream --
+    # NOT via OKVIS2-X's republished /okvis/rgb0/image_raw. This node is
+    # fully decoupled from OKVIS; it runs against whatever publishes this
+    # topic, whether that's a live camera or `ros2 bag play` of a recording.
+    image_topic: "/camera/camera/color/image_raw"
+
+    # "cpu" (OpenCV DNN, full-precision ONNX) or "htp" (Qualcomm QNN, quantized).
+    backend: "htp"
+
+    # Full-precision ONNX export for the CPU backend, or the compiled QNN
+    # context binary (.bin) for the HTP backend.
+    # NOTE for backend=cpu: yolov8n.onnx currently fails to load in this
+    # workspace's OpenCV 4.5.4 (Ultralytics' baked-in DFL decode subgraph
+    # trips the importer's shape inference) -- deprioritized in favor of htp.
+    # backend=htp uses the real context binary generated via
+    # qnn-context-binary-generator (NOT yolov8n_det.bin, which is the
+    # converter's intermediate raw-weight bundle).
+    # NOTE: this path is this dev machine's source tree. Update it to wherever
+    # models/ actually lands on the devkit once deployed (e.g. the installed
+    # share/semantic_detection/models path, or wherever you copy it).
+    model_path: "/media/nunnari/projects/deepika/SLAM/semantic_detection_ws/src/semantic_detection/models/yolov8n_det_context.bin"
+
+    # Ultralytics-style data.yaml with the COCO/custom class "names" map.
+    data_yaml_path: "/media/nunnari/projects/deepika/SLAM/semantic_detection_ws/src/semantic_detection/models/coco.yaml"
+
+    input_size: 640
+    score_threshold: 0.25
+    nms_threshold: 0.45
+    # Publishes ~/debug_image (boxes + class labels drawn on the frame) --
+    # add an rviz2 Image display on this topic to visualize detections.
+    publish_debug_image: true
+
+    # --- HTP backend only (ignored when backend == "cpu") ---
+    # Extracted via model_info.py from libyolov8n_det.so on 2026-08-xx --
+    # rerun that tool any time the model is reconverted.
+    qnn_backend_lib: "libQnnHtp.so"
+    qnn_graph_name: "yolov8n_det"
+    qnn_input_tensor_name: "images"
+    qnn_output_tensor_name: "output0"
+    qnn_output_channels: 84
+    qnn_output_boxes: 8400
+    qnn_input_quantized: true
+    qnn_output_quantized: true
+    qnn_input_bits: 16
+    qnn_output_bits: 16
+    # QNN dequant convention: float = (quantized + offset) * scale.
+    qnn_input_scale: 1.5259021891e-05
+    qnn_input_offset: 0
+    # NOTE: output0 packs box coords (0..640 px) and class scores (0..1) under
+    # one shared scale (calibration range came out ~0..642.6), so scores only
+    # get ~102 distinct quantization levels across their whole 0..1 range --
+    # expect some noise near the score_threshold boundary above.
+    qnn_output_scale: 0.00980562996119
+    qnn_output_offset: 0
